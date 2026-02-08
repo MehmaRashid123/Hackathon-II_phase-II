@@ -50,13 +50,13 @@ export default function DashboardPage() {
     } else {
       const fetchWorkspace = async () => {
         try {
-          const token = localStorage.getItem("token");
+          const token = auth.getToken();
           if (!token) {
             router.push("/login");
             return;
           }
 
-          const response = await fetch("http://localhost:8000/workspaces", {
+          const response = await fetch("http://localhost:8000/api/workspaces", {
             headers: { Authorization: `Bearer ${token}` },
           });
 
@@ -66,6 +66,10 @@ export default function DashboardPage() {
               const wsId = workspaces[0].id;
               setWorkspaceId(wsId);
               localStorage.setItem("current_workspace_id", wsId);
+            } else {
+              // No workspace found - redirect to create workspace
+              router.push("/dashboard/workspaces/create");
+              return;
             }
           }
         } catch (error) {
