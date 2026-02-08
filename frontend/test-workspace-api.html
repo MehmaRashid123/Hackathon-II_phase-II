@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Workspace API</title>
+</head>
+<body>
+    <h1>Test Workspace API</h1>
+    <button onclick="testWorkspaceAPI()">Test API</button>
+    <pre id="result"></pre>
+
+    <script>
+        async function testWorkspaceAPI() {
+            const resultEl = document.getElementById('result');
+            const token = localStorage.getItem('access_token');
+            
+            resultEl.textContent = 'Testing...\n';
+            resultEl.textContent += `Token: ${token ? 'Found' : 'Not found'}\n\n`;
+
+            if (!token) {
+                resultEl.textContent += 'ERROR: No access token found. Please login first.';
+                return;
+            }
+
+            try {
+                const response = await fetch('http://localhost:8000/workspaces', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                resultEl.textContent += `Status: ${response.status} ${response.statusText}\n\n`;
+
+                const data = await response.json();
+                resultEl.textContent += 'Response:\n' + JSON.stringify(data, null, 2);
+            } catch (error) {
+                resultEl.textContent += 'ERROR: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>

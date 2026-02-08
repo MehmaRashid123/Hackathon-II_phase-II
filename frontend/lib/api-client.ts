@@ -1,3 +1,5 @@
+import { apiClient } from "./api/client";
+
 /**
  * API Client for Authentication
  *
@@ -5,6 +7,29 @@
  */
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+/**
+ * Compatibility APIClient class for components that expect { success, data } response pattern.
+ */
+export class APIClient {
+  async get<T>(endpoint: string) {
+    try {
+      const data = await apiClient.get<T>(endpoint);
+      return { success: true, data };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : "Request failed" };
+    }
+  }
+
+  async post<T>(endpoint: string, body: any) {
+    try {
+      const data = await apiClient.post<T>(endpoint, body);
+      return { success: true, data };
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : "Request failed" };
+    }
+  }
+}
 
 export interface SignUpData {
   email: string;
@@ -43,48 +68,92 @@ export class AuthApiError extends Error {
  * Sign up a new user
  */
 export async function signUp(data: SignUpData): Promise<UserResponse> {
-  const response = await fetch(`${API_URL}/api/auth/signup`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(data),
-  });
+  try {
+    const response = await fetch(`${API_URL}/api/auth/signup`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    });
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "Sign up failed" }));
+    // Check if response is HTML (Hugging Face space waking up)
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.includes("text/html")) {
+      throw new AuthApiError(
+        "Backend is starting up. Please wait a moment and try again.",
+        503,
+        { detail: "Service temporarily unavailable" }
+      );
+    }
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Sign up failed" }));
+      throw new AuthApiError(
+        error.detail || "Sign up failed",
+        response.status,
+        error
+      );
+    }
+
+    return response.json();
+  } catch (error) {
+    // Handle network errors or JSON parse errors
+    if (error instanceof AuthApiError) {
+      throw error;
+    }
     throw new AuthApiError(
-      error.detail || "Sign up failed",
-      response.status,
-      error
+      "Unable to connect to server. Please check your connection and try again.",
+      0,
+      { detail: error instanceof Error ? error.message : "Network error" }
     );
   }
-
-  return response.json();
 }
 
 /**
  * Sign in existing user
  */
 export async function signIn(data: SignInData): Promise<TokenResponse> {
-  const response = await fetch(`${API_URL}/api/auth/signin`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(data),
-  });
+  try {
+    const response = await fetch(`${API_URL}/api/auth/signin`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    });
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: "Sign in failed" }));
+    // Check if response is HTML (Hugging Face space waking up)
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.includes("text/html")) {
+      throw new AuthApiError(
+        "Backend is starting up. Please wait a moment and try again.",
+        503,
+        { detail: "Service temporarily unavailable" }
+      );
+    }
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: "Sign in failed" }));
+      throw new AuthApiError(
+        error.detail || "Sign in failed",
+        response.status,
+        error
+      );
+    }
+
+    return response.json();
+  } catch (error) {
+    // Handle network errors or JSON parse errors
+    if (error instanceof AuthApiError) {
+      throw error;
+    }
     throw new AuthApiError(
-      error.detail || "Sign in failed",
-      response.status,
-      error
+      "Unable to connect to server. Please check your connection and try again.",
+      0,
+      { detail: error instanceof Error ? error.message : "Network error" }
     );
   }
-
-  return response.json();
 }
 
 /**

@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Auth</title>
+</head>
+<body>
+    <h1>Test Authentication</h1>
+    <button onclick="checkAuth()">Check Auth Status</button>
+    <button onclick="testWorkspaceCreate()">Test Create Workspace</button>
+    <pre id="result"></pre>
+
+    <script>
+        function checkAuth() {
+            const resultEl = document.getElementById('result');
+            const token = localStorage.getItem('access_token');
+            
+            resultEl.textContent = 'Auth Status:\n';
+            resultEl.textContent += `Token: ${token ? 'Found ✓' : 'Not found ✗'}\n`;
+            
+            if (token) {
+                try {
+                    const payload = JSON.parse(atob(token.split('.')[1]));
+                    resultEl.textContent += `User ID: ${payload.sub}\n`;
+                    resultEl.textContent += `Email: ${payload.email || 'N/A'}\n`;
+                    resultEl.textContent += `Expires: ${new Date(payload.exp * 1000).toLocaleString()}\n`;
+                } catch (e) {
+                    resultEl.textContent += `Error decoding token: ${e.message}\n`;
+                }
+            }
+        }
+
+        async function testWorkspaceCreate() {
+            const resultEl = document.getElementById('result');
+            const token = localStorage.getItem('access_token');
+            
+            if (!token) {
+                resultEl.textContent = 'ERROR: No access token. Please login first.';
+                return;
+            }
+
+            resultEl.textContent = 'Creating workspace...\n';
+
+            try {
+                const response = await fetch('http://localhost:8000/workspaces', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: 'Test Workspace ' + Date.now()
+                    })
+                });
+
+                resultEl.textContent += `Status: ${response.status} ${response.statusText}\n\n`;
+
+                const data = await response.json();
+                resultEl.textContent += 'Response:\n' + JSON.stringify(data, null, 2);
+            } catch (error) {
+                resultEl.textContent += 'ERROR: ' + error.message;
+            }
+        }
+    </script>
+</body>
+</html>

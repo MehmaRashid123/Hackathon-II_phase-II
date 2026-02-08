@@ -9,8 +9,8 @@ from datetime import datetime, timedelta
 from typing import Optional
 import uuid
 
-from backend.src.models.activity import Activity, ActivityType
-from backend.src.schemas.activity_schemas import ActivityResponse, ActivityListResponse
+from src.models.activity import Activity, ActivityType
+from src.schemas.activity_schemas import ActivityResponse, ActivityListResponse
 
 
 class ActivityService:

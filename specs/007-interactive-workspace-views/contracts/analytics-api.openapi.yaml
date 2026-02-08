@@ -1,0 +1,262 @@
+openapi: 3.0.0
+info:
+  title: Analytics API
+  version: 1.0.0
+  description: API for retrieving aggregated task analytics data for dashboards.
+
+servers:
+  - url: http://localhost:8000/api
+    description: Local development server
+
+paths:
+  /workspaces/{workspace_id}/analytics:
+    get:
+      summary: Get all analytics data for a specific workspace
+      operationId: getAllAnalyticsForWorkspace
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: workspace_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+          description: ID of the workspace
+      responses:
+        '200':
+          description: Aggregated analytics data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceAnalyticsRead'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /workspaces/{workspace_id}/analytics/status:
+    get:
+      summary: Get task status distribution for a specific workspace
+      operationId: getStatusDistribution
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: workspace_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+          description: ID of the workspace
+      responses:
+        '200':
+          description: Task status distribution data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StatusDistributionItem'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /workspaces/{workspace_id}/analytics/priority:
+    get:
+      summary: Get task priority breakdown for a specific workspace
+      operationId: getPriorityBreakdown
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: workspace_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+          description: ID of the workspace
+      responses:
+        '200':
+          description: Task priority breakdown data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PriorityBreakdownItem'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /workspaces/{workspace_id}/analytics/completion-trend:
+    get:
+      summary: Get task completion trend for a specific workspace
+      operationId: getCompletionTrend
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: workspace_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+          description: ID of the workspace
+        - in: query
+          name: days
+          schema:
+            type: integer
+            minimum: 1
+            default: 7
+          description: Number of days to include in the trend (e.g., 7 for past week).
+      responses:
+        '200':
+          description: Task completion trend data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CompletionTrendItem'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+components:
+  schemas:
+    TaskStatus:
+      type: string
+      enum: [todo, in_progress, review, done]
+      example: todo
+
+    TaskPriority:
+      type: string
+      enum: [low, medium, high, urgent]
+      example: medium
+
+    StatusDistributionItem:
+      type: object
+      required:
+        - status
+        - count
+      properties:
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+        count:
+          type: integer
+          example: 15
+
+    PriorityBreakdownItem:
+      type: object
+      required:
+        - priority
+        - count
+      properties:
+        priority:
+          $ref: '#/components/schemas/TaskPriority'
+        count:
+          type: integer
+          example: 8
+
+    CompletionTrendItem:
+      type: object
+      required:
+        - date
+        - tasks_created
+        - tasks_completed
+      properties:
+        date:
+          type: string
+          format: date
+          example: '2023-10-27'
+        tasks_created:
+          type: integer
+          example: 5
+        tasks_completed:
+          type: integer
+          example: 3
+
+    WorkspaceAnalyticsRead:
+      type: object
+      required:
+        - status_distribution
+        - priority_breakdown
+        - completion_trend
+      properties:
+        status_distribution:
+          type: array
+          items:
+            $ref: '#/components/schemas/StatusDistributionItem'
+        priority_breakdown:
+          type: array
+          items:
+            $ref: '#/components/schemas/PriorityBreakdownItem'
+        completion_trend:
+          type: array
+          items:
+            $ref: '#/components/schemas/CompletionTrendItem'
+
+    HTTPError:
+      type: object
+      properties:
+        detail:
+          type: string
+          example: "Error message"
+    
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    UnauthorizedError:
+      description: Authentication required or invalid token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HTTPError'
+    ForbiddenError:
+      description: Not enough permissions to perform the action
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HTTPError'
+    NotFoundError:
+      description: The requested resource was not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HTTPError'
+    BadRequestError:
+      description: Invalid request payload or parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HTTPError'
+    ServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HTTPError'

@@ -26,7 +26,7 @@ export function LayoutClient({ children }: LayoutClientProps) {
       <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
 
       {/* Main content area */}
-      <main className="flex-1 flex flex-col overflow-hidden">
+      <main className="flex-1 flex flex-col overflow-hidden relative">
         <TopBar />
 
         {/* Scrollable content area with glassmorphism background */}

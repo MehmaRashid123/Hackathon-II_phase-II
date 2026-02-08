@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime
 from typing import Optional, List
 import uuid
-from backend.src.models.workspace import WorkspaceRole
+from src.models.workspace import WorkspaceRole
 
 
 # Request schemas

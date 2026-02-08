@@ -16,6 +16,10 @@ from src.config import settings
 from src.database import create_db_and_tables
 from src.api.auth import router as auth_router
 from src.api.tasks import router as tasks_router
+from src.api.workspaces import router as workspaces_router
+from src.api.projects import router as projects_router
+from src.api.activities import router as activities_router
+from src.api.analytics import router as analytics_router
 
 
 @asynccontextmanager
@@ -45,6 +49,7 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
     lifespan=lifespan,
+    debug=True,  # Enable debug mode to see full error traces
 )
 
 # Configure CORS middleware
@@ -91,4 +96,8 @@ async def health_check():
 # Register API routers
 app.include_router(auth_router)
 app.include_router(tasks_router)
+app.include_router(workspaces_router)
+app.include_router(projects_router)
+app.include_router(activities_router)
+app.include_router(analytics_router)
 

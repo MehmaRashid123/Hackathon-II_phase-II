@@ -11,17 +11,16 @@ from typing import Optional, List
 import uuid
 from enum import Enum
 
-class PriorityEnum(str, Enum):
+class TaskPriority(str, Enum):
     LOW = "LOW"
     MEDIUM = "MEDIUM"
     HIGH = "HIGH"
     URGENT = "URGENT"
 
-class StatusEnum(str, Enum):
+class TaskStatus(str, Enum):
     TO_DO = "TO_DO"
     IN_PROGRESS = "IN_PROGRESS"
     REVIEW = "REVIEW"
-    BLOCKED = "BLOCKED"
     DONE = "DONE"
 
 
@@ -38,7 +37,6 @@ class Task(SQLModel, table=True):
     - id: UUID primary key
     - title: Task title (1-500 characters, required)
     - description: Task description (0-5000 characters, optional)
-    - is_completed: Completion status (default: False)
     - created_at: Timestamp of task creation (UTC)
     - updated_at: Timestamp of last update (UTC)
     - user_id: Owner's UUID (foreign key to users.id)
@@ -68,11 +66,7 @@ class Task(SQLModel, table=True):
         description="Optional task description (0-5000 characters)"
     )
 
-    is_completed: bool = Field(
-        default=False,
-        nullable=False,
-        description="Task completion status (default: False)"
-    )
+
 
     # Timestamps (UTC)
     created_at: datetime = Field(
@@ -87,32 +81,14 @@ class Task(SQLModel, table=True):
         description="Timestamp of last update (UTC)",
         sa_column_kwargs={"onupdate": datetime.utcnow}
     )
+    completed_at: Optional[datetime] = None
 
-    # Foreign key to users table (CASCADE delete)
-    user_id: uuid.UUID = Field(
+    created_by: uuid.UUID = Field(
         foreign_key="users.id",
         nullable=False,
-        index=True,  # Index for efficient filtering by user
-        description="Owner's UUID (foreign key to users.id with CASCADE delete)"
-    )
-
-    # Workspace integration (007-interactive-workspace-views)
-    workspace_id: Optional[uuid.UUID] = Field(
-        default=None,
-        foreign_key="workspaces.id",
-        nullable=True,
         index=True,
-        description="Foreign key to workspaces.id (workspace this task belongs to)"
+        description="User who created this task"
     )
-
-    created_by: Optional[uuid.UUID] = Field(
-        default=None,
-        foreign_key="users.id",
-        nullable=True,
-        index=True,
-        description="User who created this task (may differ from assigned user_id)"
-    )
-
     assigned_to: Optional[uuid.UUID] = Field(
         default=None,
         foreign_key="users.id",
@@ -121,6 +97,14 @@ class Task(SQLModel, table=True):
         description="User to whom this task is assigned"
     )
 
+    # Workspace integration (007-interactive-workspace-views)
+    workspace_id: uuid.UUID = Field(
+        foreign_key="workspace.id",
+        nullable=False,
+        index=True,
+        description="Foreign key to workspace.id (workspace this task belongs to)"
+    )
+
     # New fields for Pro Task Engine
     parent_id: Optional[uuid.UUID] = Field(
         default=None,
@@ -129,13 +113,13 @@ class Task(SQLModel, table=True):
         index=True,
         description="ID of the parent task for subtasks"
     )
-    priority: PriorityEnum = Field(
-        default=PriorityEnum.MEDIUM,
+    priority: TaskPriority = Field(
+        default=TaskPriority.MEDIUM,
         nullable=False,
         description="Priority of the task"
     )
-    status: StatusEnum = Field(
-        default=StatusEnum.TO_DO,
+    status: TaskStatus = Field(
+        default=TaskStatus.TO_DO,
         nullable=False,
         description="Status of the task"
     )
@@ -151,7 +135,7 @@ class Task(SQLModel, table=True):
     )
     section_id: Optional[uuid.UUID] = Field(
         default=None,
-        foreign_key="section.id", # This will be created in T006
+        foreign_key="sections.id", # This will be created in T006
         nullable=True,
         index=True, # Added index for efficient filtering
         description="ID of the section this task belongs to"
@@ -167,119 +151,18 @@ class Task(SQLModel, table=True):
     # Relationships
     parent_task: Optional["Task"] = Relationship(
         back_populates="subtasks",
-        sa_relationship_kwargs={"remote_side": "Task.id"} # Use dict literal
+        sa_relationship_kwargs={"remote_side": "Task.id"}
     )
     subtasks: List["Task"] = Relationship(
         back_populates="parent_task",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"} # Use dict literal
-    )
-    # Placeholder relationships for other models (will be fully defined when models are created)
-    comments: List["Comment"] = Relationship(
-        back_populates="task",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"} # Use dict literal
-    )
-    activity_logs: List["ActivityLog"] = Relationship(
-        back_populates="task",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"} # Use dict literal
-    )
-    dependencies: List["Dependency"] = Relationship(
-        back_populates="dependent_task",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"} # Use dict literal
-    )
-    dependents: List["Dependency"] = Relationship( # Represents tasks that depend on this task
-        back_populates="prerequisite_task",
-        sa_relationship_kwargs={
-            "primaryjoin": "Task.id == Dependency.depends_on_task_id",
-            "cascade": "all, delete-orphan"
-        } # Use dict literal
-    )
-    tags: List["Tag"] = Relationship(
-        back_populates="tasks",
-        link_model="TaskTagLink" # This will be created in T008
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
     )
     section: Optional["Section"] = Relationship(back_populates="tasks")
     project: Optional["Project"] = Relationship(back_populates="tasks")
     workspace: Optional["Workspace"] = Relationship(back_populates="tasks")
     activities: List["Activity"] = Relationship(back_populates="task")
-
-    # New fields for Pro Task Engine
-    parent_id: Optional[uuid.UUID] = Field(
-        default=None,
-        foreign_key="tasks.id",
-        nullable=True,
-        index=True,
-        description="ID of the parent task for subtasks"
-    )
-    priority: PriorityEnum = Field(
-        default=PriorityEnum.MEDIUM,
-        nullable=False,
-        description="Priority of the task"
-    )
-    status: StatusEnum = Field(
-        default=StatusEnum.TO_DO,
-        nullable=False,
-        description="Status of the task"
-    )
-    due_date: Optional[datetime] = Field(
-        default=None,
-        nullable=True,
-        description="Due date for the task"
-    )
-    recurrence_rule: Optional[str] = Field(
-        default=None,
-        nullable=True,
-        description="Simplified string for recurrence patterns"
-    )
-    section_id: Optional[uuid.UUID] = Field(
-        default=None,
-        foreign_key="section.id", # This will be created in T006
-        nullable=True,
-        description="ID of the section this task belongs to"
-    )
-    project_id: Optional[uuid.UUID] = Field(
-        default=None,
-        foreign_key="project.id", # This will be created in T005
-        nullable=True,
-        description="ID of the project this task belongs to"
-    )
-
-    # Relationships
-    parent_task: Optional["Task"] = Relationship(
-        back_populates="subtasks",
-        sa_relationship_kwargs=dict(remote_side="Task.id")
-    )
-    subtasks: List["Task"] = Relationship(
-        back_populates="parent_task",
-        sa_relationship_kwargs=dict(cascade="all, delete-orphan")
-    )
-    # Placeholder relationships for other models (will be fully defined when models are created)
-    comments: List["Comment"] = Relationship(
-        back_populates="task",
-        sa_relationship_kwargs=dict(cascade="all, delete-orphan")
-    )
-    activity_logs: List["ActivityLog"] = Relationship(
-        back_populates="task",
-        sa_relationship_kwargs=dict(cascade="all, delete-orphan")
-    )
-    dependencies: List["Dependency"] = Relationship(
-        back_populates="dependent_task",
-        sa_relationship_kwargs=dict(cascade="all, delete-orphan")
-    )
-    dependents: List["Dependency"] = Relationship( # Represents tasks that depend on this task
-        back_populates="prerequisite_task",
-        sa_relationship_kwargs=dict(
-            primaryjoin="Task.id == Dependency.depends_on_task_id",
-            cascade="all, delete-orphan"
-        )
-    )
-    tags: List["Tag"] = Relationship(
-        back_populates="tasks",
-        link_model="TaskTagLink" # This will be created in T008
-    )
-    section: Optional["Section"] = Relationship(back_populates="tasks")
-    project: Optional["Project"] = Relationship(back_populates="tasks")
-    workspace: Optional["Workspace"] = Relationship(back_populates="tasks")
-    activities: List["Activity"] = Relationship(back_populates="task")
+    creator: "User" = Relationship(back_populates="created_tasks", sa_relationship_kwargs={"foreign_keys": "[Task.created_by]"})
+    assignee: Optional["User"] = Relationship(back_populates="assigned_tasks", sa_relationship_kwargs={"foreign_keys": "[Task.assigned_to]"})
 
     class Config:
         """SQLModel configuration."""

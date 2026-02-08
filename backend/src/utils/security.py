@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt
 import uuid
+import hashlib
 
 from src.config import settings
 
@@ -18,7 +19,7 @@ from src.config import settings
 pwd_context = CryptContext(
     schemes=["bcrypt"],
     deprecated="auto",
-    bcrypt__rounds=12  # Cost factor (higher = more secure but slower)
+    bcrypt__rounds=12
 )
 
 
@@ -37,6 +38,9 @@ def hash_password(password: str) -> str:
         >>> len(hashed)
         60
     """
+    # Pre-hash with SHA256 to handle long passwords (bcrypt has 72 byte limit)
+    if len(password.encode('utf-8')) > 72:
+        password = hashlib.sha256(password.encode('utf-8')).hexdigest()
     return pwd_context.hash(password)
 
 
@@ -58,6 +62,9 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         >>> verify_password("wrongPassword", hashed)
         False
     """
+    # Pre-hash with SHA256 to handle long passwords (bcrypt has 72 byte limit)
+    if len(plain_password.encode('utf-8')) > 72:
+        plain_password = hashlib.sha256(plain_password.encode('utf-8')).hexdigest()
     return pwd_context.verify(plain_password, hashed_password)
 
 

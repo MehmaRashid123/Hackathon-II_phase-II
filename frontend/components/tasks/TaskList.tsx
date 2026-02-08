@@ -7,11 +7,11 @@
 "use client";
 
 import { motion, AnimatePresence } from "framer-motion";
-import { Task } from "@/lib/types/task";
+import { Task, TaskStatus } from "@/lib/types/task";
 import { TaskItem } from "./TaskItem";
 import { staggerContainerVariants } from "@/lib/animations/variants";
 import { useReducedMotion } from "@/lib/hooks/useReducedMotion";
-import { Loader2, AlertCircle } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 interface TaskListProps {
   tasks: Task[];
@@ -19,6 +19,7 @@ interface TaskListProps {
   onToggleComplete: (taskId: string) => void;
   onEdit?: (task: Task) => void;
   onDelete: (taskId: string) => void;
+  onStatusChange?: (taskId: string, status: TaskStatus) => void;
 }
 
 export function TaskList({
@@ -27,6 +28,7 @@ export function TaskList({
   onToggleComplete,
   onEdit,
   onDelete,
+  onStatusChange,
 }: TaskListProps) {
   const reducedMotion = useReducedMotion();
 
@@ -90,6 +92,7 @@ export function TaskList({
             onToggleComplete={onToggleComplete}
             onEdit={onEdit}
             onDelete={onDelete}
+            onStatusChange={onStatusChange}
           />
         ))}
       </AnimatePresence>

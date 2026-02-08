@@ -1,0 +1,100 @@
+"use client";
+
+import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from "react";
+import { toast } from "sonner"; // Assuming sonner for toasts
+import { Workspace } from "@/lib/types/workspace";
+import { APIClient } from "@/lib/api-client"; // Assuming this exists for API calls
+
+interface WorkspaceContextType {
+  workspaces: Workspace[];
+  currentWorkspace: Workspace | null;
+  isLoading: boolean;
+  error: string | null;
+  selectWorkspace: (workspaceId: string) => void;
+  fetchWorkspaces: () => Promise<void>;
+}
+
+const WorkspaceContext = createContext<WorkspaceContextType | undefined>(undefined);
+
+interface WorkspaceProviderProps {
+  children: ReactNode;
+}
+
+export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const apiClient = new APIClient(); // Initialize your API client
+
+  const fetchWorkspaces = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await apiClient.get<Workspace[]>("/workspaces");
+      if (response.success && response.data) {
+        setWorkspaces(response.data);
+        const lastSelectedWorkspaceId = localStorage.getItem("lastSelectedWorkspace");
+        let workspaceToSelect = null;
+
+        if (lastSelectedWorkspaceId) {
+          workspaceToSelect = response.data.find(ws => ws.id === lastSelectedWorkspaceId);
+        }
+
+        if (!workspaceToSelect && response.data.length > 0) {
+          workspaceToSelect = response.data[0]; // Select the first workspace if no previous selection or not found
+        }
+        setCurrentWorkspace(workspaceToSelect);
+        if (workspaceToSelect) {
+          localStorage.setItem("lastSelectedWorkspace", workspaceToSelect.id);
+        }
+      } else {
+        setError(response.error || "Failed to fetch workspaces.");
+        toast.error(response.error || "Failed to fetch workspaces.");
+      }
+    } catch (err) {
+      const message = (err instanceof Error) ? err.message : "An unknown error occurred";
+      setError(message);
+      toast.error(`Error fetching workspaces: ${message}`);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [apiClient]);
+
+  useEffect(() => {
+    fetchWorkspaces();
+  }, [fetchWorkspaces]);
+
+  const selectWorkspace = useCallback((workspaceId: string) => {
+    const selected = workspaces.find((ws) => ws.id === workspaceId);
+    if (selected) {
+      setCurrentWorkspace(selected);
+      localStorage.setItem("lastSelectedWorkspace", workspaceId);
+    } else {
+      toast.error("Selected workspace not found.");
+    }
+  }, [workspaces]);
+
+  return (
+    <WorkspaceContext.Provider
+      value={{
+        workspaces,
+        currentWorkspace,
+        isLoading,
+        error,
+        selectWorkspace,
+        fetchWorkspaces,
+      }}
+    >
+      {children}
+    </WorkspaceContext.Provider>
+  );
+}
+
+export function useWorkspace() {
+  const context = useContext(WorkspaceContext);
+  if (context === undefined) {
+    throw new Error("useWorkspace must be used within a WorkspaceProvider");
+  }
+  return context;
+}

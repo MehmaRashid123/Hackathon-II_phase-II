@@ -1,0 +1,487 @@
+openapi: 3.0.0
+info:
+  title: Workspace Management API
+  version: 1.0.0
+  description: API for managing workspaces and their members.
+
+servers:
+  - url: http://localhost:8000/api
+    description: Local development server
+
+paths:
+  /workspaces:
+    get:
+      summary: List user's workspaces
+      operationId: listWorkspaces
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            minimum: 0
+          description: The number of items to skip before starting to collect the result set.
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+          description: The numbers of items to return.
+      responses:
+        '200':
+          description: A list of workspaces
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WorkspaceRead'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      summary: Create a new workspace
+      operationId: createWorkspace
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkspaceCreate'
+      responses:
+        '201':
+          description: Workspace created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceRead'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /workspaces/{workspace_id}:
+    get:
+      summary: Get workspace details by ID
+      operationId: getWorkspaceById
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: workspace_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+          description: ID of the workspace to retrieve
+      responses:
+        '200':
+          description: Workspace details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceRead'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    put:
+      summary: Update workspace details
+      operationId: updateWorkspace
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: workspace_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+          description: ID of the workspace to update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkspaceUpdate'
+      responses:
+        '200':
+          description: Workspace updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceRead'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    delete:
+      summary: Delete a workspace (OWNER only)
+      operationId: deleteWorkspace
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: workspace_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+          description: ID of the workspace to delete
+      responses:
+        '204':
+          description: Workspace deleted successfully
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          description: Forbidden - User is not the owner or lacks permissions.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /workspaces/{workspace_id}/members:
+    get:
+      summary: List workspace members
+      operationId: listWorkspaceMembers
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: workspace_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+          description: ID of the workspace
+      responses:
+        '200':
+          description: A list of workspace members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WorkspaceMemberRead'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      summary: Invite a member to the workspace
+      operationId: inviteWorkspaceMember
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: workspace_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+          description: ID of the workspace
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkspaceMemberCreate'
+      responses:
+        '201':
+          description: Member invited successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceMemberRead'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '409':
+          description: Conflict - User already a member.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /workspaces/{workspace_id}/members/{user_id}:
+    delete:
+      summary: Remove a member from the workspace
+      operationId: removeWorkspaceMember
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: workspace_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+          description: ID of the workspace
+        - in: path
+          name: user_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+          description: ID of the user to remove
+      responses:
+        '204':
+          description: Member removed successfully
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    patch:
+      summary: Update a member's role in the workspace
+      operationId: updateWorkspaceMemberRole
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: workspace_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+          description: ID of the workspace
+        - in: path
+          name: user_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+          description: ID of the user whose role to update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkspaceMemberUpdate'
+      responses:
+        '200':
+          description: Member role updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkspaceMemberRead'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+components:
+  schemas:
+    WorkspaceRole:
+      type: string
+      enum: [owner, admin, member, viewer]
+      description: Role of a user within a workspace.
+
+    WorkspaceBase:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          example: My New Workspace
+        description:
+          type: string
+          nullable: true
+          example: A space for my personal projects.
+
+    WorkspaceCreate:
+      allOf:
+        - $ref: '#/components/schemas/WorkspaceBase'
+
+    WorkspaceUpdate:
+      allOf:
+        - $ref: '#/components/schemas/WorkspaceBase'
+      properties:
+        name:
+          type: string
+          example: Updated Workspace Name
+        description:
+          type: string
+          nullable: true
+          example: Updated description for the personal projects.
+
+    WorkspaceRead:
+      allOf:
+        - $ref: '#/components/schemas/WorkspaceBase'
+      required:
+        - id
+        - created_by
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+          example: 123e4567-e89b-12d3-a456-426614174000
+        created_by:
+          type: string
+          format: uuid
+          readOnly: true
+          example: 123e4567-e89b-12d3-a456-426614174001
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          example: '2023-10-27T10:00:00Z'
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          example: '2023-10-27T10:00:00Z'
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkspaceMemberRead'
+          readOnly: true
+          description: List of members in the workspace.
+
+    WorkspaceMemberCreate:
+      type: object
+      required:
+        - user_id
+        - role
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          example: 123e4567-e89b-12d3-a456-426614174002
+          description: ID of the user to invite.
+        role:
+          $ref: '#/components/schemas/WorkspaceRole'
+          example: member
+          description: Role for the invited user.
+
+    WorkspaceMemberUpdate:
+      type: object
+      required:
+        - role
+      properties:
+        role:
+          $ref: '#/components/schemas/WorkspaceRole'
+          example: admin
+          description: New role for the user in the workspace.
+
+    WorkspaceMemberRead:
+      type: object
+      required:
+        - workspace_id
+        - user_id
+        - role
+        - joined_at
+      properties:
+        workspace_id:
+          type: string
+          format: uuid
+          readOnly: true
+          example: 123e4567-e89b-12d3-a456-426614174000
+        user_id:
+          type: string
+          format: uuid
+          readOnly: true
+          example: 123e4567-e89b-12d3-a456-426614174002
+        role:
+          $ref: '#/components/schemas/WorkspaceRole'
+          readOnly: true
+          example: member
+        joined_at:
+          type: string
+          format: date-time
+          readOnly: true
+          example: '2023-10-27T10:05:00Z'
+        user_email: # Adding user_email for easier display on frontend
+          type: string
+          example: user@example.com
+          readOnly: true
+
+    HTTPError:
+      type: object
+      properties:
+        detail:
+          type: string
+          example: "Error message"
+    
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    UnauthorizedError:
+      description: Authentication required or invalid token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HTTPError'
+    ForbiddenError:
+      description: Not enough permissions to perform the action
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HTTPError'
+    NotFoundError:
+      description: The requested resource was not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HTTPError'
+    BadRequestError:
+      description: Invalid request payload or parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HTTPError'
+    ServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HTTPError'

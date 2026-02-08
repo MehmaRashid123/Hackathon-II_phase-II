@@ -8,8 +8,9 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Task } from "@/lib/types/task";
-import { CheckCircle2, Circle, Clock, Eye, CheckCheck, Edit3, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { Task, TaskStatus } from "@/lib/types/task";
+import { CheckCircle2, Circle, Clock, Eye, CheckCheck, Edit3, Trash2, ChevronDown } from "lucide-react";
 import { staggerItemVariants, checkboxVariants } from "@/lib/animations/variants";
 import { useReducedMotion } from "@/lib/hooks/useReducedMotion";
 
@@ -18,15 +19,25 @@ interface TaskItemProps {
   onToggleComplete: (taskId: string) => void;
   onEdit?: (task: Task) => void;
   onDelete: (taskId: string) => void;
+  onStatusChange?: (taskId: string, status: TaskStatus) => void;
 }
+
+const STATUS_OPTIONS: { value: TaskStatus; label: string; color: string }[] = [
+  { value: "TO_DO", label: "To Do", color: "text-gray-600" },
+  { value: "IN_PROGRESS", label: "In Progress", color: "text-blue-600" },
+  { value: "REVIEW", label: "Review", color: "text-purple-600" },
+  { value: "DONE", label: "Done", color: "text-green-600" },
+];
 
 export function TaskItem({
   task,
   onToggleComplete,
   onEdit,
   onDelete,
+  onStatusChange,
 }: TaskItemProps) {
   const reducedMotion = useReducedMotion();
+  const [showStatusMenu, setShowStatusMenu] = useState(false);
 
   const itemVariants = reducedMotion
     ? { hidden: { opacity: 1 }, visible: { opacity: 1 }, exit: { opacity: 1 } }
@@ -38,7 +49,6 @@ export function TaskItem({
 
   // Status configuration with colors and icons
   const getStatusConfig = () => {
-    // Determine status: use task.status if available, otherwise infer from is_completed
     const status = task.status || (task.is_completed ? "DONE" : "TO_DO");
 
     if (status === "DONE" || task.is_completed) {
@@ -91,66 +101,77 @@ export function TaskItem({
   const config = getStatusConfig();
   const StatusIcon = config.icon;
 
+  const handleStatusChange = (newStatus: TaskStatus) => {
+    if (onStatusChange) {
+      onStatusChange(task.id, newStatus);
+    }
+    setShowStatusMenu(false);
+  };
+
   return (
     <motion.div
       className={`
         relative overflow-hidden
-        flex items-start gap-4 p-5
-        ${config.bgColor}
-        border-2 rounded-xl
-        shadow-md hover:shadow-xl
+        flex items-start gap-4 p-6
+        bg-white/90 dark:bg-gray-800/90
+        backdrop-blur-xl
+        border-2 border-gray-200/50 dark:border-gray-700/50
+        rounded-2xl
+        shadow-lg hover:shadow-2xl
         transition-all duration-300
+        group
       `}
       variants={itemVariants}
       initial="hidden"
       animate="visible"
       exit="exit"
-      whileHover={reducedMotion ? {} : { scale: 1.02, y: -2 }}
+      whileHover={reducedMotion ? {} : { scale: 1.01, y: -4 }}
       layout
     >
-      {/* Status stripe */}
-      <div className={`absolute top-0 left-0 w-full h-1.5 ${config.stripeColor}`} />
+      {/* Gradient Status Stripe */}
+      <div className={`absolute top-0 left-0 w-full h-2 ${config.stripeColor} shadow-lg`} />
+      
+      {/* Decorative Corner Accent */}
+      <div className={`absolute top-0 right-0 w-24 h-24 ${config.stripeColor} opacity-10 rounded-bl-full transform translate-x-12 -translate-y-12 group-hover:scale-150 transition-transform duration-500`} />
 
       {/* Status Icon & Checkbox */}
-      <div className="flex flex-col items-center gap-2 pt-1">
-        <div className={`${config.iconColor}`}>
+      <div className="flex flex-col items-center gap-3 pt-1 z-10">
+        <div className={`${config.iconColor} bg-white dark:bg-gray-700 p-3 rounded-xl shadow-md group-hover:shadow-lg transition-shadow`}>
           <StatusIcon size={24} strokeWidth={2.5} />
         </div>
 
         <motion.button
           onClick={() => onToggleComplete(task.id)}
-          className="flex-shrink-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 rounded-full p-1"
+          className="flex-shrink-0 cursor-pointer focus:outline-none focus:ring-4 focus:ring-blue-500/50 rounded-full p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
           variants={checkVariants}
           animate={task.is_completed ? "checked" : "unchecked"}
           whileTap={reducedMotion ? {} : { scale: 0.9 }}
           title={task.is_completed ? "Mark as incomplete" : "Mark as complete"}
         >
           {task.is_completed ? (
-            <CheckCircle2 className="h-6 w-6 text-green-600 fill-green-100" />
+            <CheckCircle2 className="h-7 w-7 text-green-600 fill-green-100 drop-shadow-md" />
           ) : (
-            <Circle className="h-6 w-6 text-gray-400 hover:text-gray-600" />
+            <Circle className="h-7 w-7 text-gray-400 hover:text-gray-600 transition-colors" />
           )}
         </motion.button>
       </div>
 
       {/* Task Content */}
-      <div className="flex-1 min-w-0 space-y-2">
+      <div className="flex-1 min-w-0 space-y-3 z-10">
         {/* Title with completion checkmark */}
-        <div className="flex items-start gap-2">
+        <div className="flex items-start gap-3">
           <h3
-            className={`flex-1 text-lg font-semibold ${config.textColor} ${
-              task.is_completed
-                ? "line-through opacity-75"
-                : ""
-            }`}
+            className={`flex-1 text-xl font-bold ${config.textColor} ${
+              task.is_completed ? "line-through opacity-60" : ""
+            } transition-all`}
           >
             {task.title}
           </h3>
 
           {task.is_completed && (
             <CheckCircle2
-              className="flex-shrink-0 text-green-500 animate-in zoom-in duration-300"
-              size={20}
+              className="flex-shrink-0 text-green-500 animate-in zoom-in duration-300 drop-shadow-md"
+              size={24}
               fill="currentColor"
             />
           )}
@@ -159,53 +180,102 @@ export function TaskItem({
         {/* Description */}
         {task.description && (
           <p
-            className={`text-sm ${
+            className={`text-sm leading-relaxed ${
               task.is_completed
-                ? "text-gray-500 dark:text-gray-500 line-through opacity-60"
+                ? "text-gray-500 dark:text-gray-500 line-through opacity-50"
                 : "text-gray-600 dark:text-gray-400"
-            }`}
+            } transition-all`}
           >
             {task.description}
           </p>
         )}
 
-        {/* Footer: Status badge & date */}
-        <div className="flex items-center justify-between pt-2">
-          <span className={`px-3 py-1.5 rounded-full text-xs font-semibold ${config.badgeColor}`}>
-            {config.label}
-          </span>
+        {/* Footer: Status badge, priority & date */}
+        <div className="flex items-center justify-between pt-3 border-t border-gray-200/50 dark:border-gray-700/50">
+          <div className="flex items-center gap-2">
+            {/* Status Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setShowStatusMenu(!showStatusMenu)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold ${config.badgeColor} shadow-sm hover:shadow-md transition-all`}
+              >
+                {config.label}
+                <ChevronDown className="w-3 h-3" />
+              </button>
 
-          <span className="text-xs text-gray-500 dark:text-gray-400">
-            {new Date(task.created_at).toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-              year: "numeric"
-            })}
-          </span>
+              {/* Status Dropdown Menu */}
+              {showStatusMenu && (
+                <>
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setShowStatusMenu(false)}
+                  ></div>
+                  <div className="absolute left-0 mt-2 w-40 bg-white dark:bg-gray-800 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 py-2 z-20">
+                    {STATUS_OPTIONS.map((option) => (
+                      <button
+                        key={option.value}
+                        onClick={() => handleStatusChange(option.value)}
+                        className={`w-full text-left px-4 py-2 text-sm font-medium ${option.color} hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
+                          task.status === option.value ? "bg-gray-100 dark:bg-gray-700" : ""
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {task.priority && (
+              <span className={`px-3 py-1.5 rounded-lg text-xs font-semibold ${
+                task.priority === 'HIGH' || task.priority === 'URGENT'
+                  ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
+                  : task.priority === 'MEDIUM'
+                  ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300'
+                  : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
+              }`}>
+                {task.priority}
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            <span className="font-medium">
+              {new Date(task.created_at).toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: "numeric"
+              })}
+            </span>
+          </div>
         </div>
       </div>
 
       {/* Actions */}
-      <div className="flex flex-col gap-2 pt-1">
+      <div className="flex flex-col gap-2 pt-1 z-10">
         {onEdit && (
           <motion.button
             onClick={() => onEdit(task)}
-            className="p-2 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
-            whileHover={reducedMotion ? {} : { scale: 1.1 }}
+            className="p-3 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-xl transition-all shadow-sm hover:shadow-md"
+            whileHover={reducedMotion ? {} : { scale: 1.1, rotate: 5 }}
             whileTap={reducedMotion ? {} : { scale: 0.95 }}
             title="Edit task"
           >
-            <Edit3 size={18} />
+            <Edit3 size={18} strokeWidth={2.5} />
           </motion.button>
         )}
         <motion.button
           onClick={() => onDelete(task.id)}
-          className="p-2 text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-          whileHover={reducedMotion ? {} : { scale: 1.1 }}
+          className="p-3 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-xl transition-all shadow-sm hover:shadow-md"
+          whileHover={reducedMotion ? {} : { scale: 1.1, rotate: -5 }}
           whileTap={reducedMotion ? {} : { scale: 0.95 }}
           title="Delete task"
         >
-          <Trash2 size={18} />
+          <Trash2 size={18} strokeWidth={2.5} />
         </motion.button>
       </div>
     </motion.div>

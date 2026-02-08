@@ -4,9 +4,6 @@ import uuid
 
 from sqlmodel import Field, Relationship, SQLModel
 
-from backend.src.models.project import Project  # Import Project model
-from backend.src.models.task import Task  # Import Task model for relationships
-
 
 class Section(SQLModel, table=True):
     """
@@ -44,15 +41,14 @@ class Section(SQLModel, table=True):
     )
 
     project_id: uuid.UUID = Field(
-        foreign_key="projects.id",
+        foreign_key="project.id",
         nullable=False,
         index=True,
         description="Foreign key to the project this section belongs to"
     )
 
     # Relationships
-    project: Project = Relationship(back_populates="sections")
+    project: 'Project' = Relationship(back_populates="sections")
     tasks: List["Task"] = Relationship(
-        back_populates="section",
-        sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+        back_populates="section"
     )

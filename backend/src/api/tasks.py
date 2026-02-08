@@ -16,15 +16,18 @@ Every endpoint enforces that users can only access their own tasks.
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session
 from typing import List
+from datetime import datetime
 
 from src.database import get_session
-from src.schemas.task_schemas import TaskCreate, TaskUpdate, TaskResponse, TaskStatusUpdate
+from src.schemas.task import TaskCreate, TaskUpdate, TaskRead, TaskStatusUpdate
 from src.services.task_service import TaskService
 from src.services.permissions import PermissionService
 from src.services.activity_service import ActivityService
 from src.models.activity import ActivityType
-from src.models.task import StatusEnum
+from src.models.task import TaskStatus, TaskPriority # Updated import
 from src.middleware.auth import validate_user_id
+from src.models.user import User # Added for get_current_user
+from src.middleware.auth import get_current_user # Added for current user
 
 
 # Create router for task endpoints
@@ -33,7 +36,7 @@ router = APIRouter(prefix="/api", tags=["Tasks"])
 
 @router.get(
     "/{user_id}/tasks",
-    response_model=List[TaskResponse],
+    response_model=List[TaskRead],
     status_code=status.HTTP_200_OK,
     summary="List all user's tasks",
     description="""
@@ -52,7 +55,7 @@ router = APIRouter(prefix="/api", tags=["Tasks"])
 async def list_tasks(
     user_id: str = Depends(validate_user_id),
     session: Session = Depends(get_session)
-) -> List[TaskResponse]:
+) -> List[TaskRead]:
     """
     List all tasks for authenticated user.
 
@@ -64,7 +67,7 @@ async def list_tasks(
         session: Database session (injected)
 
     Returns:
-        List[TaskResponse]: All user's tasks, newest first (empty array if none)
+        List[TaskRead]: All user's tasks, newest first (empty array if none)
 
     Example Request:
         GET /api/7c9e6679-7425-40de-944b-e07fc1f90ae7/tasks
@@ -90,12 +93,12 @@ async def list_tasks(
     tasks = TaskService.get_user_tasks(session, user_id)
 
     # Return list of tasks (empty array if no tasks)
-    return [TaskResponse.model_validate(task) for task in tasks]
+    return [TaskRead.model_validate(task) for task in tasks]
 
 
 @router.post(
     "/{user_id}/tasks",
-    response_model=TaskResponse,
+    response_model=TaskRead,
     status_code=status.HTTP_201_CREATED,
     summary="Create a new task",
     description="""
@@ -121,7 +124,7 @@ async def create_task(
     task_data: TaskCreate,
     user_id: str = Depends(validate_user_id),
     session: Session = Depends(get_session)
-) -> TaskResponse:
+) -> TaskRead:
     """
     Create a new task for authenticated user.
 
@@ -131,7 +134,7 @@ async def create_task(
         session: Database session (injected)
 
     Returns:
-        TaskResponse: Newly created task
+        TaskRead: Newly created task
 
     Raises:
         HTTPException 422: If validation fails (Pydantic)
@@ -161,12 +164,12 @@ async def create_task(
     new_task = TaskService.create_task(session, user_id, task_data)
 
     # Return created task
-    return TaskResponse.model_validate(new_task)
+    return TaskRead.model_validate(new_task)
 
 
 @router.put(
     "/{user_id}/tasks/{task_id}",
-    response_model=TaskResponse,
+    response_model=TaskRead,
     status_code=status.HTTP_200_OK,
     summary="Update an existing task",
     description="""
@@ -192,7 +195,7 @@ async def update_task(
     update_data: TaskUpdate,
     user_id: str = Depends(validate_user_id),
     session: Session = Depends(get_session)
-) -> TaskResponse:
+) -> TaskRead:
     """
     Update an existing task's details.
 
@@ -203,7 +206,7 @@ async def update_task(
         session: Database session (injected)
 
     Returns:
-        TaskResponse: Updated task
+        TaskRead: Updated task
 
     Raises:
         HTTPException 404: If task not found
@@ -235,12 +238,12 @@ async def update_task(
     updated_task = TaskService.update_task(session, user_id, task_id, update_data)
 
     # Return updated task
-    return TaskResponse.model_validate(updated_task)
+    return TaskRead.model_validate(updated_task)
 
 
 @router.patch(
     "/{user_id}/tasks/{task_id}/complete",
-    response_model=TaskResponse,
+    response_model=TaskRead,
     status_code=status.HTTP_200_OK,
     summary="Toggle task completion status",
     description="""
@@ -262,7 +265,7 @@ async def toggle_task_completion(
     task_id: str,
     user_id: str = Depends(validate_user_id),
     session: Session = Depends(get_session)
-) -> TaskResponse:
+) -> TaskRead:
     """
     Toggle task completion status.
 
@@ -274,7 +277,7 @@ async def toggle_task_completion(
         session: Database session (injected)
 
     Returns:
-        TaskResponse: Task with toggled completion status
+        TaskRead: Task with toggled completion status
 
     Raises:
         HTTPException 404: If task not found
@@ -299,12 +302,12 @@ async def toggle_task_completion(
     toggled_task = TaskService.toggle_task_completion(session, user_id, task_id)
 
     # Return updated task
-    return TaskResponse.model_validate(toggled_task)
+    return TaskRead.model_validate(toggled_task)
 
 
 @router.get(
     "/{user_id}/tasks/{task_id}",
-    response_model=TaskResponse,
+    response_model=TaskRead,
     status_code=status.HTTP_200_OK,
     summary="Get a specific task",
     description="""
@@ -326,7 +329,7 @@ async def get_task(
     task_id: str,
     user_id: str = Depends(validate_user_id),
     session: Session = Depends(get_session)
-) -> TaskResponse:
+) -> TaskRead:
     """
     Get a specific task by ID.
 
@@ -336,7 +339,7 @@ async def get_task(
         session: Database session (injected)
 
     Returns:
-        TaskResponse: Task details
+        TaskRead: Task details
 
     Raises:
         HTTPException 404: If task not found
@@ -361,7 +364,7 @@ async def get_task(
     task = TaskService.get_task_by_id(session, user_id, task_id)
 
     # Return task details
-    return TaskResponse.model_validate(task)
+    return TaskRead.model_validate(task)
 
 
 @router.delete(
@@ -421,7 +424,7 @@ async def delete_task(
 
 @router.patch(
     "/workspaces/{workspace_id}/tasks/{task_id}/status",
-    response_model=TaskResponse,
+    response_model=TaskRead,
     status_code=status.HTTP_200_OK,
     summary="Update task status (Kanban drag-and-drop)",
     description="""
@@ -451,9 +454,9 @@ async def update_task_status(
     workspace_id: str,
     task_id: str,
     status_update: TaskStatusUpdate,
-    user_id: str = Depends(validate_user_id),
+    current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session)
-) -> TaskResponse:
+) -> TaskRead:
     """
     Update task status for Kanban drag-and-drop.
 
@@ -470,7 +473,7 @@ async def update_task_status(
         session: Database session (injected)
 
     Returns:
-        TaskResponse: Updated task with new status
+        TaskRead: Updated task with new status
 
     Raises:
         HTTPException 404: If task or workspace not found
@@ -505,7 +508,7 @@ async def update_task_status(
     try:
         workspace_uuid = uuid_module.UUID(workspace_id)
         task_uuid = uuid_module.UUID(task_id)
-        user_uuid = uuid_module.UUID(user_id)
+        user_uuid = current_user.id # Use current_user.id directly
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -520,13 +523,7 @@ async def update_task_status(
         )
 
     # Get task and verify it belongs to workspace
-    task = TaskService.get_task_by_id(session, user_id, task_id)
-
-    if task.workspace_id != workspace_uuid:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Task does not belong to this workspace"
-        )
+    task = TaskService.get_task_by_id_and_workspace(session, current_user, workspace_uuid, task_uuid)
 
     # Store old status for activity logging
     old_status = task.status
@@ -535,11 +532,11 @@ async def update_task_status(
     task.status = status_update.status
 
     # Auto-mark as completed if moved to DONE
-    if status_update.status == StatusEnum.DONE:
-        task.is_completed = True
-    elif task.is_completed and status_update.status != StatusEnum.DONE:
+    if status_update.status == TaskStatus.DONE:
+        task.completed_at = datetime.utcnow()
+    elif task.completed_at and status_update.status != TaskStatus.DONE:
         # Unmark completion if moved away from DONE
-        task.is_completed = False
+        task.completed_at = None
 
     session.add(task)
     session.commit()
@@ -560,12 +557,12 @@ async def update_task_status(
         # Don't fail the request if activity logging fails
         print(f"Warning: Activity logging failed: {e}")
 
-    return TaskResponse.model_validate(task)
+    return TaskRead.model_validate(task)
 
 
 @router.get(
     "/workspaces/{workspace_id}/tasks",
-    response_model=List[TaskResponse],
+    response_model=List[TaskRead],
     status_code=status.HTTP_200_OK,
     summary="List workspace tasks",
     description="""
@@ -586,9 +583,9 @@ async def update_task_status(
 )
 async def list_workspace_tasks(
     workspace_id: str,
-    user_id: str = Depends(validate_user_id),
+    current_user: User = Depends(get_current_user),
     session: Session = Depends(get_session)
-) -> List[TaskResponse]:
+) -> List[TaskRead]:
     """
     List all tasks in a workspace.
 
@@ -598,7 +595,7 @@ async def list_workspace_tasks(
         session: Database session (injected)
 
     Returns:
-        List[TaskResponse]: All tasks in workspace
+        List[TaskRead]: All tasks in workspace
 
     Raises:
         HTTPException 403: If user is not a workspace member
@@ -608,7 +605,7 @@ async def list_workspace_tasks(
 
     try:
         workspace_uuid = uuid_module.UUID(workspace_id)
-        user_uuid = uuid_module.UUID(user_id)
+        user_uuid = current_user.id # Use current_user.id directly
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -633,5 +630,78 @@ async def list_workspace_tasks(
     )
     tasks = session.exec(statement).all()
 
-    return [TaskResponse.model_validate(task) for task in tasks]
+    return [TaskRead.model_validate(task) for task in tasks]
 
+
+
+@router.post(
+    "/workspaces/{workspace_id}/tasks",
+    response_model=TaskRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a new task in workspace",
+    description="""
+    Create a new task in a workspace.
+
+    **Security**:
+    - Requires valid JWT token
+    - User must have at least MEMBER role in the workspace
+
+    **Returns:**
+    - HTTP 201: Task created successfully
+    - HTTP 401: If authentication fails
+    - HTTP 403: If user lacks permission
+    - HTTP 404: If workspace not found
+
+    **Authorization**: Bearer {jwt_token}
+    """
+)
+async def create_workspace_task(
+    workspace_id: str,
+    task_data: TaskCreate,
+    current_user: User = Depends(get_current_user),
+    session: Session = Depends(get_session)
+) -> TaskRead:
+    """
+    Create a new task in a workspace.
+
+    Args:
+        workspace_id: Workspace ID from URL path
+        task_data: TaskCreate schema
+        current_user: Authenticated user (injected)
+        session: Database session (injected)
+
+    Returns:
+        TaskRead: Newly created task
+
+    Raises:
+        HTTPException 403: If user lacks workspace access
+        HTTPException 404: If workspace not found
+    """
+    import uuid as uuid_module
+
+    try:
+        workspace_uuid = uuid_module.UUID(workspace_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid UUID format"
+        )
+
+    # Debug logging
+    print(f"Creating task in workspace {workspace_uuid} for user {current_user.id}")
+    print(f"Task data: {task_data}")
+
+    # Create task via service layer
+    try:
+        new_task = TaskService.create_task(session, current_user, workspace_uuid, task_data)
+        print(f"Task created successfully: {new_task.id}")
+        return TaskRead.model_validate(new_task)
+    except HTTPException as e:
+        print(f"Permission error: {e.detail}")
+        raise
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )

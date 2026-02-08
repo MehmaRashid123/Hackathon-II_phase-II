@@ -1,266 +1,213 @@
-/**
- * KanbanBoard Component
- *
- * Premium Kanban board with drag-and-drop, optimistic updates, and celebrations.
- */
-
 "use client";
 
-import React, { useState, useEffect } from "react";
-import {
-  DndContext,
-  DragEndEvent,
-  DragOverlay,
-  DragStartEvent,
-  PointerSensor,
-  TouchSensor,
-  useSensor,
-  useSensors,
-  closestCorners,
-} from "@dnd-kit/core";
-import { KanbanTask, TaskStatus, KANBAN_COLUMNS } from "@/lib/types/kanban";
+import { useEffect, useState } from "react";
+import { useTasks } from "@/lib/hooks/useTasks";
+import { Task, TaskPriority } from "@/lib/types/task";
 import { KanbanColumn } from "./KanbanColumn";
-import { KanbanCard } from "./KanbanCard";
-import { KanbanService } from "@/lib/services/kanban-service";
-import { useWorkspace } from "@/lib/hooks/use-workspace";
-import { celebrateTaskCompletion } from "@/lib/utils/confetti";
+import { taskApi } from "@/lib/api/tasks";
+import { Plus, Grid3x3, List } from "lucide-react";
+import { TaskForm } from "@/components/tasks/TaskForm";
+import Link from "next/link";
 
 interface KanbanBoardProps {
-  initialTasks?: KanbanTask[];
+  workspaceId: string;
 }
 
-export function KanbanBoard({ initialTasks = [] }: KanbanBoardProps) {
-  const { currentWorkspace } = useWorkspace();
-  const [tasks, setTasks] = useState<KanbanTask[]>(initialTasks);
-  const [activeTask, setActiveTask] = useState<KanbanTask | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+type TaskStatus = "TO_DO" | "IN_PROGRESS" | "REVIEW" | "DONE";
 
-  // Configure sensors for better touch/pointer support
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 8, // 8px movement before drag starts
-      },
-    }),
-    useSensor(TouchSensor, {
-      activationConstraint: {
-        delay: 200, // 200ms hold before drag starts on touch
-        tolerance: 8,
-      },
-    })
-  );
+const COLUMNS: { id: TaskStatus; title: string; color: string }[] = [
+  { id: "TO_DO", title: "To Do", color: "from-gray-500 to-gray-600" },
+  { id: "IN_PROGRESS", title: "In Progress", color: "from-blue-500 to-blue-600" },
+  { id: "REVIEW", title: "Review", color: "from-yellow-500 to-yellow-600" },
+  { id: "DONE", title: "Done", color: "from-green-500 to-green-600" },
+];
 
-  // Load tasks on mount
+export function KanbanBoard({ workspaceId }: KanbanBoardProps) {
+  const { tasks, loading, createTask, fetchTasks } = useTasks(workspaceId);
+  const [localTasks, setLocalTasks] = useState<Task[]>([]);
+  const [draggedTask, setDraggedTask] = useState<Task | null>(null);
+  const [showForm, setShowForm] = useState(false);
+
+  // Sync tasks with local state
   useEffect(() => {
-    loadTasks();
-  }, [currentWorkspace]);
+    setLocalTasks(tasks);
+  }, [tasks]);
 
-  async function loadTasks() {
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      // If workspace is selected, fetch workspace tasks
-      if (currentWorkspace) {
-        const workspaceTasks = await KanbanService.getWorkspaceTasks(
-          currentWorkspace.id
-        );
-        setTasks(workspaceTasks);
-      } else {
-        // Fallback: fetch user tasks and convert to KanbanTask format
-        const { taskApi } = await import("@/lib/api/tasks");
-        const userTasks = await taskApi.list();
-
-        // Load saved statuses from localStorage
-        const savedStatuses = loadSavedStatuses();
-
-        // Convert Task[] to KanbanTask[] with status from localStorage or default
-        const kanbanTasks: KanbanTask[] = userTasks.map(task => ({
-          ...task,
-          status: savedStatuses[task.id] || task.status || (task.is_completed ? "DONE" : "TO_DO"),
-          workspace_id: task.workspace_id || undefined
-        }));
-
-        setTasks(kanbanTasks);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load tasks");
-    } finally {
-      setIsLoading(false);
+  // Refresh tasks on mount
+  useEffect(() => {
+    if (workspaceId) {
+      fetchTasks(workspaceId);
     }
-  }
+  }, [workspaceId, fetchTasks]);
 
-  // Helper functions for localStorage status persistence
-  function loadSavedStatuses(): Record<string, TaskStatus> {
-    if (typeof window === 'undefined') return {};
-    try {
-      const saved = localStorage.getItem('kanban-task-statuses');
-      return saved ? JSON.parse(saved) : {};
-    } catch {
-      return {};
+  const handleDragStart = (task: Task) => {
+    setDraggedTask(task);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedTask(null);
+  };
+
+  const handleDrop = async (status: TaskStatus) => {
+    if (!draggedTask || draggedTask.status === status) {
+      setDraggedTask(null);
+      return;
     }
-  }
 
-  function saveTaskStatus(taskId: string, status: TaskStatus) {
-    if (typeof window === 'undefined') return;
-    try {
-      const statuses = loadSavedStatuses();
-      statuses[taskId] = status;
-      localStorage.setItem('kanban-task-statuses', JSON.stringify(statuses));
-    } catch (err) {
-      console.error('Failed to save task status:', err);
-    }
-  }
+    const oldStatus = draggedTask.status;
+    const taskId = draggedTask.id;
 
-  function handleDragStart(event: DragStartEvent) {
-    const { active } = event;
-    const task = tasks.find((t) => t.id === active.id);
-    if (task) {
-      setActiveTask(task);
-    }
-  }
-
-  async function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event;
-    setActiveTask(null);
-
-    if (!over) return;
-
-    const taskId = active.id as string;
-    const newStatus = over.id as TaskStatus;
-
-    const task = tasks.find((t) => t.id === taskId);
-    if (!task) return;
-
-    // Get actual current status (with fallback)
-    const currentStatus = task.status || (task.is_completed ? "DONE" : "TO_DO");
-
-    if (currentStatus === newStatus) return;
-
-    const oldStatus = currentStatus;
-
-    // Optimistic UI update (instant feedback)
-    setTasks((prevTasks) =>
-      prevTasks.map((t) =>
-        t.id === taskId
-          ? { ...t, status: newStatus, is_completed: newStatus === "DONE" }
-          : t
+    // Optimistic update
+    setLocalTasks((prev) =>
+      prev.map((task) =>
+        task.id === taskId ? { ...task, status } : task
       )
     );
 
-    // Save to localStorage for non-workspace tasks
-    if (!currentWorkspace) {
-      saveTaskStatus(taskId, newStatus);
-    }
-
-    // Trigger confetti if moved to DONE
-    if (newStatus === "DONE") {
-      celebrateTaskCompletion();
-    }
-
     try {
-      // Backend update - choose based on workspace availability
-      if (currentWorkspace) {
-        await KanbanService.updateTaskStatus(
-          currentWorkspace.id,
-          taskId,
-          newStatus
-        );
-      } else {
-        // For non-workspace tasks, use toggleComplete API if moving to/from DONE
-        const { taskApi } = await import("@/lib/api/tasks");
-
-        // Update completion status if crossing DONE boundary
-        const shouldBeCompleted = newStatus === "DONE";
-        if (task.is_completed !== shouldBeCompleted) {
-          await taskApi.toggleComplete(taskId);
-        }
-      }
-    } catch (err) {
+      // Update via API
+      await taskApi.updateStatus(workspaceId, taskId, status);
+    } catch (error) {
+      console.error("Failed to update task status:", error);
       // Rollback on error
-      setTasks((prevTasks) =>
-        prevTasks.map((t) =>
-          t.id === taskId
-            ? { ...t, status: oldStatus, is_completed: oldStatus === "DONE" }
-            : t
+      setLocalTasks((prev) =>
+        prev.map((task) =>
+          task.id === taskId ? { ...task, status: oldStatus } : task
         )
       );
-
-      // Rollback localStorage
-      if (!currentWorkspace) {
-        saveTaskStatus(taskId, oldStatus);
-      }
-
-      // Show error notification
-      setError(err instanceof Error ? err.message : "Failed to update task status");
-
-      // Clear error after 5 seconds
-      setTimeout(() => setError(null), 5000);
     }
+
+    setDraggedTask(null);
+  };
+
+  // Handle create task
+  const handleCreateTask = async (data: { title: string; description?: string; priority?: TaskPriority; status?: TaskStatus }) => {
+    try {
+      await createTask(data);
+      setShowForm(false);
+    } catch (err) {
+      console.error("Failed to create task:", err);
+    }
+  };
+
+  const getTasksByStatus = (status: TaskStatus) => {
+    return localTasks.filter((task) => task.status === status);
+  };
+
+  if (loading && localTasks.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
   }
 
-  // Group tasks by status for columns
-  const groupedTasks = KanbanService.groupTasksByStatus(tasks);
-
   return (
-    <div className="relative h-full">
-      {/* Error notification */}
-      {error && (
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-top duration-300">
-          <div className="px-6 py-3 rounded-xl bg-red-500/90 backdrop-blur-md text-white shadow-lg">
-            <p className="font-medium">{error}</p>
-          </div>
-        </div>
-      )}
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-gray-900 dark:via-slate-900 dark:to-gray-900">
+      {/* Decorative Background */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-purple-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob"></div>
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-blue-300 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-blob animation-delay-2000"></div>
+      </div>
 
-      {/* Loading state */}
-      {isLoading ? (
-        <div className="flex items-center justify-center h-64">
-          <div className="flex flex-col items-center space-y-4">
-            <div className="w-12 h-12 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Loading tasks...
-            </p>
-          </div>
-        </div>
-      ) : (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCorners}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
-        >
-          {/* Kanban columns - Responsive grid with proper scrolling */}
-          <div className="h-full w-full overflow-x-auto overflow-y-hidden">
-            <div className="flex gap-4 h-full min-w-max lg:grid lg:grid-cols-4 lg:gap-6">
-              {KANBAN_COLUMNS.map((column) => (
-                <KanbanColumn
-                  key={column.id}
-                  id={column.id}
-                  title={column.title}
-                  tasks={groupedTasks[column.id]}
-                  color={column.color}
-                />
-              ))}
+      {/* Header */}
+      <div className="relative bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl border-b border-gray-200/50 dark:border-gray-700/50 shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+                  <Grid3x3 className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                    Kanban Board
+                  </h1>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Drag and drop tasks to update their status
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {/* Stats */}
+              <div className="hidden sm:flex items-center gap-3">
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 px-4 py-2 rounded-lg border border-blue-200 dark:border-blue-700">
+                  <div className="text-xs text-blue-600 dark:text-blue-400 font-medium">Total</div>
+                  <div className="text-2xl font-bold text-blue-700 dark:text-blue-300">{localTasks.length}</div>
+                </div>
+              </div>
+
+              {/* View Toggle */}
+              <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-700/50 rounded-xl p-1.5 shadow-inner">
+                <Link
+                  href="/dashboard/tasks"
+                  className="px-4 py-2.5 rounded-lg hover:bg-white/80 dark:hover:bg-gray-600/50 text-gray-600 dark:text-gray-300 transition-all"
+                  title="Switch to List View"
+                >
+                  <List size={18} />
+                </Link>
+                <button
+                  className="px-4 py-2.5 rounded-lg bg-gradient-to-r from-blue-500 to-purple-600 shadow-lg text-white font-medium transition-all"
+                  title="Kanban View (Active)"
+                >
+                  <Grid3x3 size={18} />
+                </button>
+              </div>
+
+              {/* New Task Button */}
+              <button
+                onClick={() => setShowForm(!showForm)}
+                className="group relative px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 flex items-center gap-2 font-semibold"
+              >
+                <Plus size={20} strokeWidth={2.5} />
+                <span className="hidden sm:inline">New Task</span>
+              </button>
             </div>
           </div>
+        </div>
+      </div>
 
-          {/* Drag overlay (card being dragged) */}
-          <DragOverlay>
-            {activeTask ? <KanbanCard task={activeTask} isDragging /> : null}
-          </DragOverlay>
-        </DndContext>
+      {/* Task Creation Form */}
+      {showForm && (
+        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-200/50 dark:border-gray-700/50 p-8 animate-in slide-in-from-top duration-300">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+                <Plus className="w-5 h-5 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white">
+                Create New Task
+              </h3>
+            </div>
+            <TaskForm
+              onSubmit={handleCreateTask}
+              submitLabel="Create Task"
+              onCancel={() => setShowForm(false)}
+            />
+          </div>
+        </div>
       )}
 
-      {/* Mobile horizontal scroll hint */}
-      <div className="lg:hidden mt-2 text-center flex-shrink-0">
-        <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center justify-center gap-2">
-          <span>←</span>
-          <span>Swipe to view all columns</span>
-          <span>→</span>
-        </p>
-      </div>
+      {/* Kanban Columns */}
+      <main className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {COLUMNS.map((column) => (
+            <KanbanColumn
+              key={column.id}
+              title={column.title}
+              status={column.id}
+              color={column.color}
+              tasks={getTasksByStatus(column.id)}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+              onDrop={handleDrop}
+              isDragging={draggedTask !== null}
+            />
+          ))}
+        </div>
+      </main>
     </div>
   );
 }

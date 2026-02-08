@@ -11,10 +11,62 @@ import { useState, useEffect, useCallback } from "react";
 import { taskApi } from "../api/tasks";
 import { Task, TaskCreateInput, TaskUpdateInput } from "../types/task";
 
-export function useTasks() {
+export function useTasks(workspaceId?: string) {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [autoWorkspaceId, setAutoWorkspaceId] = useState<string | null>(null);
+
+  // Auto-fetch workspace ID if not provided
+  useEffect(() => {
+    if (!workspaceId && typeof window !== 'undefined') {
+      // First check localStorage
+      const cachedWorkspaceId = localStorage.getItem('current_workspace_id');
+      if (cachedWorkspaceId) {
+        setAutoWorkspaceId(cachedWorkspaceId);
+        return;
+      }
+
+      // If not in cache, fetch from API
+      const fetchWorkspace = async () => {
+        try {
+          const token = localStorage.getItem('token');
+          if (!token) {
+            setLoading(false);
+            return;
+          }
+
+          const response = await fetch('http://localhost:8000/workspaces', {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+
+          if (response.ok) {
+            const workspaces = await response.json();
+            if (workspaces.length > 0) {
+              const wsId = workspaces[0].id;
+              setAutoWorkspaceId(wsId);
+              localStorage.setItem('current_workspace_id', wsId);
+            } else {
+              setError("No workspace found. Please create a workspace first.");
+              setLoading(false);
+            }
+          } else {
+            setError("Failed to load workspace");
+            setLoading(false);
+          }
+        } catch (error) {
+          console.error('Failed to fetch workspace:', error);
+          setError("Failed to load workspace");
+          setLoading(false);
+        }
+      };
+
+      fetchWorkspace();
+    }
+  }, [workspaceId]);
+
+  // Use provided workspace ID or auto-fetched one
+  const effectiveWorkspaceId = workspaceId || autoWorkspaceId;
 
   // Helper to load saved statuses from localStorage
   function loadSavedStatuses(): Record<string, any> {
@@ -41,11 +93,15 @@ export function useTasks() {
   }
 
   // Fetch all tasks
-  const fetchTasks = useCallback(async () => {
+  const fetchTasks = useCallback(async (wsId?: string) => {
     try {
       setLoading(true);
       setError(null);
-      const data = await taskApi.list();
+      
+      // Use provided workspace ID, effective workspace ID, or the one from hook parameter
+      const targetWorkspaceId = wsId || effectiveWorkspaceId || undefined;
+      
+      const data = await taskApi.list(targetWorkspaceId);
 
       // Load saved statuses from localStorage (for Kanban sync)
       const savedStatuses = loadSavedStatuses();
@@ -63,17 +119,32 @@ export function useTasks() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [effectiveWorkspaceId]);
 
-  // Initial fetch
+  // Initial fetch - only if workspace ID is available
   useEffect(() => {
-    fetchTasks();
-  }, [fetchTasks]);
+    if (effectiveWorkspaceId) {
+      fetchTasks(effectiveWorkspaceId);
+    } else {
+      setLoading(false);
+    }
+  }, [effectiveWorkspaceId, fetchTasks]);
 
   // Create task with optimistic update
   const createTask = useCallback(async (data: TaskCreateInput) => {
     try {
       setError(null);
+
+      // Get workspace ID - wait for it to be available
+      const wsId = (effectiveWorkspaceId || (typeof window !== 'undefined' ? localStorage.getItem('current_workspace_id') : undefined)) as string | undefined;
+      
+      if (!wsId) {
+        const errorMsg = "No workspace available. Please refresh the page or create a workspace first.";
+        setError(errorMsg);
+        throw new Error(errorMsg);
+      }
+
+      console.log('Creating task with workspace ID:', wsId);
 
       // Optimistic update - add temporary task
       const tempId = `temp-${Date.now()}`;
@@ -81,16 +152,24 @@ export function useTasks() {
         id: tempId,
         title: data.title,
         description: data.description || null,
+        priority: data.priority || "MEDIUM",
+        status: data.status || "TO_DO",
         is_completed: false,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        user_id: "", // Will be set by backend
+        workspace_id: wsId,
+        created_by: "",
+        assigned_to: null,
+        completed_at: null,
+        project_id: null,
       };
 
       setTasks((prev) => [optimisticTask, ...prev]);
 
-      // Make API call
-      const newTask = await taskApi.create(data);
+      // Make API call with workspace ID
+      const newTask = await taskApi.create(data, wsId);
+      
+      console.log('Task created successfully:', newTask);
 
       // Replace optimistic task with real task
       setTasks((prev) =>
@@ -99,12 +178,14 @@ export function useTasks() {
 
       return newTask;
     } catch (err) {
+      console.error('Failed to create task:', err);
       // Rollback optimistic update on error
       setTasks((prev) => prev.filter((task) => !task.id.startsWith("temp-")));
-      setError(err instanceof Error ? err.message : "Failed to create task");
+      const errorMessage = err instanceof Error ? err.message : "Failed to create task";
+      setError(errorMessage);
       throw err;
     }
-  }, []);
+  }, [effectiveWorkspaceId]);
 
   // Toggle task completion with optimistic update
   const toggleComplete = useCallback(async (taskId: string) => {

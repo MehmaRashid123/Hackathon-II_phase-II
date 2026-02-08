@@ -1,7 +1,7 @@
 /**
  * Task API methods.
  *
- * All task CRUD operations with automatic user ID injection.
+ * All task CRUD operations with workspace context.
  */
 
 import { apiClient } from "./client";
@@ -9,27 +9,50 @@ import { Task, TaskCreateInput, TaskUpdateInput } from "../types/task";
 
 export const taskApi = {
   /**
-   * Get all tasks for current user.
+   * Get all tasks for current workspace.
    *
-   * GET /api/{user_id}/tasks
+   * GET /api/workspaces/{workspace_id}/tasks
    */
-  async list(): Promise<Task[]> {
-    const userId = apiClient.getUserId();
-    if (!userId) throw new Error("User not authenticated");
+  async list(workspaceId?: string): Promise<Task[]> {
+    if (!workspaceId) {
+      // Try to get from localStorage
+      if (typeof window !== "undefined") {
+        workspaceId = localStorage.getItem("current_workspace_id") || undefined;
+      }
+    }
+    
+    if (!workspaceId) {
+      // Return empty array if no workspace selected
+      console.warn("No workspace selected, returning empty task list");
+      return [];
+    }
 
-    return apiClient.get<Task[]>(`/api/${userId}/tasks`);
+    try {
+      return await apiClient.get<Task[]>(`/api/workspaces/${workspaceId}/tasks`);
+    } catch (error) {
+      // If workspace not found or invalid, return empty array
+      console.error("Failed to fetch tasks:", error);
+      return [];
+    }
   },
 
   /**
-   * Create a new task for current user.
+   * Create a new task in workspace.
    *
-   * POST /api/{user_id}/tasks
+   * POST /api/{user_id}/tasks (old endpoint for backward compatibility)
    */
-  async create(data: TaskCreateInput): Promise<Task> {
-    const userId = apiClient.getUserId();
-    if (!userId) throw new Error("User not authenticated");
+  async create(data: TaskCreateInput, workspaceId?: string): Promise<Task> {
+    // Get workspace ID
+    if (!workspaceId && typeof window !== "undefined") {
+      workspaceId = localStorage.getItem("current_workspace_id") || undefined;
+    }
+    
+    if (!workspaceId) {
+      throw new Error("No workspace selected. Please select a workspace first.");
+    }
 
-    return apiClient.post<Task>(`/api/${userId}/tasks`, data);
+    // Use workspace-based endpoint
+    return apiClient.post<Task>(`/api/workspaces/${workspaceId}/tasks`, data);
   },
 
   /**
@@ -78,5 +101,17 @@ export const taskApi = {
     if (!userId) throw new Error("User not authenticated");
 
     return apiClient.patch<Task>(`/api/${userId}/tasks/${taskId}/complete`);
+  },
+
+  /**
+   * Update task status (for Kanban board).
+   *
+   * PATCH /api/workspaces/{workspace_id}/tasks/{task_id}/status
+   */
+  async updateStatus(workspaceId: string, taskId: string, status: string): Promise<Task> {
+    return apiClient.patch<Task>(
+      `/api/workspaces/${workspaceId}/tasks/${taskId}/status`,
+      { status }
+    );
   },
 };

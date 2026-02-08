@@ -1,0 +1,183 @@
+openapi: 3.0.0
+info:
+  title: Activity Feed API
+  version: 1.0.0
+  description: API for retrieving real-time activity logs for a specific workspace.
+
+servers:
+  - url: http://localhost:8000/api
+    description: Local development server
+
+paths:
+  /workspaces/{workspace_id}/activities:
+    get:
+      summary: List recent activities within a specific workspace
+      operationId: listWorkspaceActivities
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: workspace_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+          description: ID of the workspace
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            minimum: 0
+          description: The number of items to skip before starting to collect the result set.
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+          description: The numbers of items to return.
+        - in: query
+          name: activity_type
+          schema:
+            $ref: '#/components/schemas/ActivityType'
+          description: Optional. Filter activities by type.
+        - in: query
+          name: user_id
+          schema:
+            type: string
+            format: uuid
+          description: Optional. Filter activities by the user who performed them.
+        - in: query
+          name: task_id
+          schema:
+            type: string
+            format: uuid
+          description: Optional. Filter activities related to a specific task.
+      responses:
+        '200':
+          description: A list of recent activities
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ActivityRead'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+components:
+  schemas:
+    ActivityType:
+      type: string
+      enum: [
+        task_created,
+        task_status_changed,
+        task_priority_changed,
+        task_assigned,
+        task_deleted,
+        workspace_created,
+        workspace_member_added
+      ]
+      example: task_status_changed
+
+    ActivityRead:
+      type: object
+      required:
+        - id
+        - workspace_id
+        - user_id
+        - activity_type
+        - description
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+          example: 123e4567-e89b-12d3-a456-426614174005
+        workspace_id:
+          type: string
+          format: uuid
+          readOnly: true
+          example: 123e4567-e89b-12d3-a456-426614174000
+        user_id:
+          type: string
+          format: uuid
+          readOnly: true
+          example: 123e4567-e89b-12d3-a456-426614174001
+        task_id:
+          type: string
+          format: uuid
+          nullable: true
+          readOnly: true
+          example: 123e4567-e89b-12d3-a456-426614174004
+        activity_type:
+          $ref: '#/components/schemas/ActivityType'
+        description:
+          type: string
+          example: "Task 'Implement Frontend' status changed from 'todo' to 'in_progress'."
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          example: '2023-10-27T10:30:00Z'
+        user_email: # Adding user_email for easier display on frontend
+          type: string
+          example: user@example.com
+          readOnly: true
+        task_title: # Adding task_title for easier display on frontend
+          type: string
+          example: Implement Frontend
+          nullable: true
+          readOnly: true
+
+    HTTPError:
+      type: object
+      properties:
+        detail:
+          type: string
+          example: "Error message"
+    
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    UnauthorizedError:
+      description: Authentication required or invalid token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HTTPError'
+    ForbiddenError:
+      description: Not enough permissions to perform the action
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HTTPError'
+    NotFoundError:
+      description: The requested resource was not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HTTPError'
+    BadRequestError:
+      description: Invalid request payload or parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HTTPError'
+    ServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HTTPError'

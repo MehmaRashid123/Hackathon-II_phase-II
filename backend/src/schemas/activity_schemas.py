@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime
 from typing import Optional, List
 import uuid
-from backend.src.models.activity import ActivityType
+from src.models.activity import ActivityType
 
 
 # Response schemas

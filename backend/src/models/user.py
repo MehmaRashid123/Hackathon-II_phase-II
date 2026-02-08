@@ -62,8 +62,11 @@ class User(SQLModel, table=True):
         description="Last modification timestamp (UTC, auto-updated)"
     )
 
-    projects: List["Project"] = Relationship(back_populates="user")
-    workspace_memberships: List["WorkspaceMember"] = Relationship(back_populates="user")
+    projects: List["Project"] = Relationship(back_populates="creator")
+    created_workspaces: List["Workspace"] = Relationship()
+    workspace_members: List["WorkspaceMember"] = Relationship(back_populates="user")
+    created_tasks: List["Task"] = Relationship(back_populates="creator", sa_relationship_kwargs={"foreign_keys": "Task.created_by"})
+    assigned_tasks: List["Task"] = Relationship(back_populates="assignee", sa_relationship_kwargs={"foreign_keys": "Task.assigned_to"})
     activities: List["Activity"] = Relationship(back_populates="user")
 
     class Config:

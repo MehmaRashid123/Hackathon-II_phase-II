@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backend Connection Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 { color: #333; }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 5px;
+        }
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #45a049; }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 5px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .loading { background: #fff3cd; color: #856404; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Backend Connection Test</h1>
+        
+        <div class="test-section">
+            <h3>Test 1: Health Check (Hugging Face)</h3>
+            <button onclick="testHealth('https://mehma-to-do.hf.space')">Test HF Backend</button>
+            <div id="hf-result" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>Test 2: Health Check (Localhost)</h3>
+            <button onclick="testHealth('http://localhost:8000')">Test Local Backend</button>
+            <div id="local-result" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>Test 3: Login API (Hugging Face)</h3>
+            <button onclick="testLogin('https://mehma-to-do.hf.space')">Test HF Login</button>
+            <div id="hf-login-result" class="result"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>Test 4: CORS Check</h3>
+            <button onclick="testCORS('https://mehma-to-do.hf.space')">Test CORS</button>
+            <div id="cors-result" class="result"></div>
+        </div>
+    </div>
+
+    <script>
+        async function testHealth(baseUrl) {
+            const resultId = baseUrl.includes('localhost') ? 'local-result' : 'hf-result';
+            const resultDiv = document.getElementById(resultId);
+            
+            resultDiv.className = 'result loading';
+            resultDiv.textContent = '⏳ Testing connection...';
+
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+                const response = await fetch(`${baseUrl}/health`, {
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+
+                const data = await response.json();
+                
+                resultDiv.className = 'result success';
+                resultDiv.textContent = `✅ Success!\nStatus: ${response.status}\nResponse: ${JSON.stringify(data, null, 2)}`;
+            } catch (error) {
+                resultDiv.className = 'result error';
+                if (error.name === 'AbortError') {
+                    resultDiv.textContent = `❌ Timeout: Backend not responding after 10 seconds\n\nPossible issues:\n- Space is sleeping (HF free tier)\n- Backend is down\n- Port configuration issue`;
+                } else {
+                    resultDiv.textContent = `❌ Error: ${error.message}\n\nDetails: ${error.stack || 'No additional details'}`;
+                }
+            }
+        }
+
+        async function testLogin(baseUrl) {
+            const resultDiv = document.getElementById('hf-login-result');
+            
+            resultDiv.className = 'result loading';
+            resultDiv.textContent = '⏳ Testing login endpoint...';
+
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+                const response = await fetch(`${baseUrl}/api/auth/signin`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        email: 'test@example.com',
+                        password: 'testpassword'
+                    }),
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+
+                const data = await response.json();
+                
+                if (response.status === 401 || response.status === 404) {
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = `✅ Endpoint is reachable!\nStatus: ${response.status}\nResponse: ${JSON.stringify(data, null, 2)}\n\n(401/404 is expected for invalid credentials)`;
+                } else {
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = `✅ Success!\nStatus: ${response.status}\nResponse: ${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                if (error.name === 'AbortError') {
+                    resultDiv.textContent = `❌ Timeout: Backend not responding`;
+                } else {
+                    resultDiv.textContent = `❌ Error: ${error.message}`;
+                }
+            }
+        }
+
+        async function testCORS(baseUrl) {
+            const resultDiv = document.getElementById('cors-result');
+            
+            resultDiv.className = 'result loading';
+            resultDiv.textContent = '⏳ Testing CORS...';
+
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+                const response = await fetch(`${baseUrl}/health`, {
+                    method: 'GET',
+                    headers: {
+                        'Origin': window.location.origin
+                    },
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+
+                const corsHeader = response.headers.get('Access-Control-Allow-Origin');
+                
+                resultDiv.className = 'result success';
+                resultDiv.textContent = `✅ CORS Headers:\nAccess-Control-Allow-Origin: ${corsHeader || 'Not set'}\n\nFull headers:\n${Array.from(response.headers.entries()).map(([k,v]) => `${k}: ${v}`).join('\n')}`;
+            } catch (error) {
+                resultDiv.className = 'result error';
+                if (error.name === 'AbortError') {
+                    resultDiv.textContent = `❌ Timeout: Backend not responding`;
+                } else if (error.message.includes('CORS')) {
+                    resultDiv.textContent = `❌ CORS Error: ${error.message}\n\nThe backend needs to add your domain to CORS_ORIGINS`;
+                } else {
+                    resultDiv.textContent = `❌ Error: ${error.message}`;
+                }
+            }
+        }
+    </script>
+</body>
+</html>

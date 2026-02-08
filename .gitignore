@@ -78,3 +78,7 @@ pnpm-lock.yaml
 *.tmp
 *.temp
 .cache/
+.aider*
+
+.vercel
+.env*.local

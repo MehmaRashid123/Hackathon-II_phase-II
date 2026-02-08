@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field, field_validator
 from datetime import datetime
 from typing import Optional
 import uuid
-from backend.src.models.task import StatusEnum
+from src.models.task import StatusEnum
 
 
 class TaskCreate(BaseModel):

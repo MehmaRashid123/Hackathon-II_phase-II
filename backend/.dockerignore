@@ -1,0 +1,61 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# Environment files
+.env
+.env.local
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+server.log
+
+# Testing
+test_*.py
+*_test.py
+TESTING.md
+
+# Migration scripts (not needed in production)
+add_*.py
+check_*.py
+clean_*.py
+drop_*.py
+fix_*.py
+list_*.py
+migrate_*.py
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Batch files
+*.bat
+*.sh
+
+# Alembic versions (optional - include if you want migrations)
+# versions/

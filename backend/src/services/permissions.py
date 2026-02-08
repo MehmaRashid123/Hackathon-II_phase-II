@@ -8,8 +8,8 @@ from sqlmodel import Session, select
 from typing import Optional
 import uuid
 
-from backend.src.models.workspace import WorkspaceMember, WorkspaceRole
-from backend.src.models.user import User
+from src.models.workspace_member import WorkspaceMember, WorkspaceRole
+from src.models.user import User
 
 
 class PermissionService:

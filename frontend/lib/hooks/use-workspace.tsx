@@ -68,7 +68,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       const data = await WorkspaceService.getUserWorkspaces();
       setWorkspaces(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load workspaces");
+      const errorMessage = err instanceof Error ? err.message : "Failed to load workspaces";
+      console.error("Workspace loading error:", errorMessage, err);
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -116,5 +118,14 @@ export function useWorkspace() {
   if (context === undefined) {
     throw new Error("useWorkspace must be used within a WorkspaceProvider");
   }
-  return context;
+  
+  // Add helper to check if user needs to create a workspace
+  const needsWorkspace = !context.loading && context.workspaces.length === 0;
+  
+  return {
+    ...context,
+    needsWorkspace,
+    isLoading: context.loading,
+    selectWorkspace: context.setCurrentWorkspace,
+  };
 }

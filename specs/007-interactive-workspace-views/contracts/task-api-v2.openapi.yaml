@@ -1,0 +1,447 @@
+openapi: 3.0.0
+info:
+  title: Task Management API v2
+  version: 2.0.0
+  description: Updated API for managing tasks, now workspace-aware and including status updates for Kanban.
+
+servers:
+  - url: http://localhost:8000/api
+    description: Local development server
+
+paths:
+  /workspaces/{workspace_id}/tasks:
+    get:
+      summary: List tasks within a specific workspace
+      operationId: listTasksInWorkspace
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: workspace_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+          description: ID of the workspace
+        - in: query
+          name: project_id
+          schema:
+            type: string
+            format: uuid
+          description: Optional. Filter tasks by project ID.
+        - in: query
+          name: status
+          schema:
+            $ref: '#/components/schemas/TaskStatus'
+          description: Optional. Filter tasks by status.
+        - in: query
+          name: priority
+          schema:
+            $ref: '#/components/schemas/TaskPriority'
+          description: Optional. Filter tasks by priority.
+        - in: query
+          name: assigned_to
+          schema:
+            type: string
+            format: uuid
+          description: Optional. Filter tasks by assignee user ID.
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            minimum: 0
+          description: The number of items to skip before starting to collect the result set.
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+          description: The numbers of items to return.
+      responses:
+        '200':
+          description: A list of tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TaskRead'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      summary: Create a new task within a specific workspace
+      operationId: createTaskInWorkspace
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: workspace_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+          description: ID of the workspace where the task will be created
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskCreate'
+      responses:
+        '201':
+          description: Task created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskRead'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /workspaces/{workspace_id}/tasks/{task_id}:
+    get:
+      summary: Get task details by ID within a workspace
+      operationId: getTaskByIdInWorkspace
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: workspace_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+          description: ID of the workspace
+        - in: path
+          name: task_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+          description: ID of the task to retrieve
+      responses:
+        '200':
+          description: Task details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskRead'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    put:
+      summary: Update a task's details within a workspace
+      operationId: updateTaskInWorkspace
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: workspace_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+          description: ID of the workspace
+        - in: path
+          name: task_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+          description: ID of the task to update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskUpdate'
+      responses:
+        '200':
+          description: Task updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskRead'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    delete:
+      summary: Delete a task within a workspace
+      operationId: deleteTaskInWorkspace
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: workspace_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+          description: ID of the workspace
+        - in: path
+          name: task_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+          description: ID of the task to delete
+      responses:
+        '204':
+          description: Task deleted successfully
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /workspaces/{workspace_id}/tasks/{task_id}/status:
+    patch:
+      summary: Update task status (for Kanban drag-and-drop)
+      operationId: updateTaskStatus
+      security:
+        - BearerAuth: []
+      parameters:
+        - in: path
+          name: workspace_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+          description: ID of the workspace
+        - in: path
+          name: task_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+          description: ID of the task to update status
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskStatusUpdate'
+      responses:
+        '200':
+          description: Task status updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskRead'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+components:
+  schemas:
+    TaskStatus:
+      type: string
+      enum: [todo, in_progress, review, done]
+      example: todo
+
+    TaskPriority:
+      type: string
+      enum: [low, medium, high, urgent]
+      example: medium
+
+    TaskBase:
+      type: object
+      required:
+        - title
+        - status
+        - priority
+      properties:
+        title:
+          type: string
+          example: Implement Kanban Board
+        description:
+          type: string
+          nullable: true
+          example: Develop the frontend and backend for the Kanban board functionality.
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+        priority:
+          $ref: '#/components/schemas/TaskPriority'
+        project_id:
+          type: string
+          format: uuid
+          nullable: true
+          example: 123e4567-e89b-12d3-a456-426614174003
+          description: Optional ID of the project this task belongs to.
+        assigned_to:
+          type: string
+          format: uuid
+          nullable: true
+          example: 123e4567-e89b-12d3-a456-426614174002
+          description: Optional ID of the user assigned to this task.
+
+    TaskCreate:
+      allOf:
+        - $ref: '#/components/schemas/TaskBase'
+      # created_by and workspace_id will be derived from JWT and path parameter
+      # completed_at is not set on creation
+
+    TaskUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          example: Refine Kanban Board UI
+        description:
+          type: string
+          nullable: true
+          example: Improve drag-and-drop animations and responsiveness.
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+        priority:
+          $ref: '#/components/schemas/TaskPriority'
+        project_id:
+          type: string
+          format: uuid
+          nullable: true
+          example: 123e4567-e89b-12d3-a456-426614174003
+        assigned_to:
+          type: string
+          format: uuid
+          nullable: true
+          example: 123e4567-e89b-12d3-a456-426614174002
+
+    TaskStatusUpdate:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          $ref: '#/components/schemas/TaskStatus'
+          example: in_progress
+          description: The new status for the task.
+
+    TaskRead:
+      allOf:
+        - $ref: '#/components/schemas/TaskBase'
+      required:
+        - id
+        - workspace_id
+        - created_by
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+          example: 123e4567-e89b-12d3-a456-426614174004
+        workspace_id:
+          type: string
+          format: uuid
+          readOnly: true
+          example: 123e4567-e89b-12d3-a456-426614174000
+        created_by:
+          type: string
+          format: uuid
+          readOnly: true
+          example: 123e4567-e89b-12d3-a456-426614174001
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          example: '2023-10-27T10:10:00Z'
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          example: '2023-10-27T10:15:00Z'
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+          readOnly: true
+          example: '2023-10-27T10:20:00Z'
+        creator_email:
+          type: string
+          readOnly: true
+          example: creator@example.com
+        assignee_email:
+          type: string
+          nullable: true
+          readOnly: true
+          example: assignee@example.com
+
+    HTTPError:
+      type: object
+      properties:
+        detail:
+          type: string
+          example: "Error message"
+    
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    UnauthorizedError:
+      description: Authentication required or invalid token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HTTPError'
+    ForbiddenError:
+      description: Not enough permissions to perform the action
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HTTPError'
+    NotFoundError:
+      description: The requested resource was not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HTTPError'
+    BadRequestError:
+      description: Invalid request payload or parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HTTPError'
+    ServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HTTPError'
