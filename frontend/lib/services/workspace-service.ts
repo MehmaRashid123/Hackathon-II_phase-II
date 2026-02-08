@@ -43,14 +43,14 @@ export class WorkspaceService {
    * Get all workspaces the current user has access to.
    */
   static async getUserWorkspaces(): Promise<Workspace[]> {
-    return apiClient.get<Workspace[]>("/workspaces");
+    return apiClient.get<Workspace[]>("/workspaces/");
   }
 
   /**
    * Create a new workspace.
    */
   static async createWorkspace(data: WorkspaceCreateRequest): Promise<Workspace> {
-    return apiClient.post<Workspace>("/workspaces", data);
+    return apiClient.post<Workspace>("/workspaces/", data);
   }
 
   /**
