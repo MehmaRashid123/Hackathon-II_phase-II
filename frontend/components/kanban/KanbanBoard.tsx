@@ -65,8 +65,8 @@ export function KanbanBoard({ workspaceId }: KanbanBoardProps) {
     );
 
     try {
-      // Update via API
-      await taskApi.updateStatus(workspaceId, taskId, status);
+      // Update via API (personal tasks - no workspace)
+      await taskApi.update(taskId, { status });
     } catch (error) {
       console.error("Failed to update task status:", error);
       // Rollback on error
