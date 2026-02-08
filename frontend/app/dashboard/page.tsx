@@ -31,10 +31,9 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<{ email: string } | null>(null);
-  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Route protection and workspace loading
+  // Route protection (workspace disabled - using personal tasks)
   useEffect(() => {
     const currentUser = auth.getUser();
     if (!currentUser) {
@@ -42,45 +41,10 @@ export default function DashboardPage() {
       return;
     }
     setUser(currentUser);
-
-    const wsId = localStorage.getItem("current_workspace_id");
-    if (wsId) {
-      setWorkspaceId(wsId);
-      setLoading(false);
-    } else {
-      const fetchWorkspace = async () => {
-        try {
-          const token = auth.getToken();
-          if (!token) {
-            router.push("/login");
-            return;
-          }
-
-          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/workspaces`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-
-          if (response.ok) {
-            const workspaces = await response.json();
-            if (workspaces.length > 0) {
-              const wsId = workspaces[0].id;
-              setWorkspaceId(wsId);
-              localStorage.setItem("current_workspace_id", wsId);
-            }
-            // No redirect if no workspace - allow personal tasks
-          }
-        } catch (error) {
-          console.error("Failed to fetch workspace:", error);
-        } finally {
-          setLoading(false);
-        }
-      };
-
-      fetchWorkspace();
-    }
+    setLoading(false);
   }, [router]);
 
-  const { tasks, loading: tasksLoading } = useTasks(workspaceId || undefined);
+  const { tasks, loading: tasksLoading } = useTasks(); // No workspace - personal tasks
 
   // Calculate stats
   const stats = useMemo(() => {
@@ -154,14 +118,6 @@ export default function DashboardPage() {
                   </p>
                 </div>
               </div>
-              {!workspaceId && (
-                <Link
-                  href="/dashboard/workspaces/create"
-                  className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white rounded-lg shadow-lg transition-all font-semibold text-sm"
-                >
-                  + Create Workspace
-                </Link>
-              )}
             </div>
           </div>
         </div>

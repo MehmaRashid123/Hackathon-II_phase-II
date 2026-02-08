@@ -9,65 +9,36 @@ import { Task, TaskCreateInput, TaskUpdateInput } from "../types/task";
 
 export const taskApi = {
   /**
-   * Get all tasks (workspace or personal).
+   * Get all tasks (personal tasks only - workspace disabled).
    *
-   * GET /api/workspaces/{workspace_id}/tasks (if workspace provided)
-   * GET /api/{user_id}/tasks (if no workspace - personal tasks)
+   * GET /api/{user_id}/tasks
    */
   async list(workspaceId?: string): Promise<Task[]> {
-    if (!workspaceId) {
-      // Try to get from localStorage
-      if (typeof window !== "undefined") {
-        workspaceId = localStorage.getItem("current_workspace_id") || undefined;
-      }
-    }
-    
-    if (workspaceId) {
-      // Workspace tasks
-      try {
-        return await apiClient.get<Task[]>(`/api/workspaces/${workspaceId}/tasks`);
-      } catch (error) {
-        console.error("Failed to fetch workspace tasks:", error);
+    // Workspace disabled - always use personal tasks
+    try {
+      const userId = apiClient.getUserId();
+      if (!userId) {
+        console.warn("No user ID found, returning empty task list");
         return [];
       }
-    } else {
-      // Personal tasks (no workspace)
-      try {
-        const userId = apiClient.getUserId();
-        if (!userId) {
-          console.warn("No user ID found, returning empty task list");
-          return [];
-        }
-        return await apiClient.get<Task[]>(`/api/${userId}/tasks`);
-      } catch (error) {
-        console.error("Failed to fetch personal tasks:", error);
-        return [];
-      }
+      return await apiClient.get<Task[]>(`/api/${userId}/tasks`);
+    } catch (error) {
+      console.error("Failed to fetch personal tasks:", error);
+      return [];
     }
   },
 
   /**
-   * Create a new task (workspace or personal).
+   * Create a new task (personal task only - workspace disabled).
    *
-   * POST /api/workspaces/{workspace_id}/tasks (if workspace provided)
-   * POST /api/{user_id}/tasks (if no workspace - personal task)
+   * POST /api/{user_id}/tasks
    */
   async create(data: TaskCreateInput, workspaceId?: string): Promise<Task> {
-    // Get workspace ID if not provided
-    if (!workspaceId && typeof window !== "undefined") {
-      workspaceId = localStorage.getItem("current_workspace_id") || undefined;
-    }
+    // Workspace disabled - always create personal task
+    const userId = apiClient.getUserId();
+    if (!userId) throw new Error("User not authenticated");
     
-    if (workspaceId) {
-      // Create workspace task
-      return apiClient.post<Task>(`/api/workspaces/${workspaceId}/tasks`, data);
-    } else {
-      // Create personal task (no workspace)
-      const userId = apiClient.getUserId();
-      if (!userId) throw new Error("User not authenticated");
-      
-      return apiClient.post<Task>(`/api/${userId}/tasks`, data);
-    }
+    return apiClient.post<Task>(`/api/${userId}/tasks`, data);
   },
 
   /**

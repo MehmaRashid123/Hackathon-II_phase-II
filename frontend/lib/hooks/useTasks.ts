@@ -17,46 +17,10 @@ export function useTasks(workspaceId?: string) {
   const [error, setError] = useState<string | null>(null);
   const [autoWorkspaceId, setAutoWorkspaceId] = useState<string | null>(null);
 
-  // Auto-fetch workspace ID if not provided (OPTIONAL - for workspace-based tasks)
+  // Auto-fetch workspace ID if not provided (DISABLED - using personal tasks only)
   useEffect(() => {
-    if (!workspaceId && typeof window !== 'undefined') {
-      // First check localStorage
-      const cachedWorkspaceId = localStorage.getItem('current_workspace_id');
-      if (cachedWorkspaceId) {
-        setAutoWorkspaceId(cachedWorkspaceId);
-        return;
-      }
-
-      // If not in cache, fetch from API (optional - don't block if no workspace)
-      const fetchWorkspace = async () => {
-        try {
-          const token = localStorage.getItem('access_token');
-          if (!token) {
-            setLoading(false);
-            return;
-          }
-
-          const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/workspaces`, {
-            headers: { 'Authorization': `Bearer ${token}` }
-          });
-
-          if (response.ok) {
-            const workspaces = await response.json();
-            if (workspaces.length > 0) {
-              const wsId = workspaces[0].id;
-              setAutoWorkspaceId(wsId);
-              localStorage.setItem('current_workspace_id', wsId);
-            }
-            // Don't set error if no workspace - allow personal tasks
-          }
-        } catch (error) {
-          console.error('Failed to fetch workspace:', error);
-          // Don't set error - allow personal tasks without workspace
-        }
-      };
-
-      fetchWorkspace();
-    }
+    // Workspace feature disabled - using personal tasks
+    setLoading(false);
   }, [workspaceId]);
 
   // Use provided workspace ID or auto-fetched one
@@ -115,21 +79,18 @@ export function useTasks(workspaceId?: string) {
     }
   }, [effectiveWorkspaceId]);
 
-  // Initial fetch - workspace is optional for personal tasks
+  // Initial fetch - using personal tasks only (workspace disabled)
   useEffect(() => {
-    // Always fetch tasks, even without workspace (for personal tasks)
-    fetchTasks(effectiveWorkspaceId || undefined);
-  }, [effectiveWorkspaceId, fetchTasks]);
+    // Always fetch personal tasks (no workspace)
+    fetchTasks(undefined);
+  }, [fetchTasks]);
 
-  // Create task with optimistic update (workspace optional for personal tasks)
+  // Create task with optimistic update (personal tasks only - workspace disabled)
   const createTask = useCallback(async (data: TaskCreateInput) => {
     try {
       setError(null);
 
-      // Get workspace ID if available (optional for personal tasks)
-      const wsId = (effectiveWorkspaceId || (typeof window !== 'undefined' ? localStorage.getItem('current_workspace_id') : undefined)) as string | undefined;
-      
-      console.log('Creating task with workspace ID:', wsId || 'PERSONAL TASK (no workspace)');
+      console.log('Creating personal task (workspace disabled)');
 
       // Optimistic update - add temporary task
       const tempId = `temp-${Date.now()}`;
@@ -142,7 +103,7 @@ export function useTasks(workspaceId?: string) {
         is_completed: false,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        workspace_id: wsId || null,
+        workspace_id: null, // Personal task
         created_by: "",
         assigned_to: null,
         completed_at: null,
@@ -151,10 +112,10 @@ export function useTasks(workspaceId?: string) {
 
       setTasks((prev) => [optimisticTask, ...prev]);
 
-      // Make API call (workspace ID is optional)
-      const newTask = await taskApi.create(data, wsId);
+      // Make API call for personal task (no workspace)
+      const newTask = await taskApi.create(data, undefined);
       
-      console.log('Task created successfully:', newTask);
+      console.log('Personal task created successfully:', newTask);
 
       // Replace optimistic task with real task
       setTasks((prev) =>
@@ -170,7 +131,7 @@ export function useTasks(workspaceId?: string) {
       setError(errorMessage);
       throw err;
     }
-  }, [effectiveWorkspaceId]);
+  }, []);
 
   // Toggle task completion with optimistic update
   const toggleComplete = useCallback(async (taskId: string) => {

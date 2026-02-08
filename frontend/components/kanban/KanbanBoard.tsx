@@ -10,7 +10,7 @@ import { TaskForm } from "@/components/tasks/TaskForm";
 import Link from "next/link";
 
 interface KanbanBoardProps {
-  workspaceId: string;
+  workspaceId?: string; // Optional - for personal tasks
 }
 
 type TaskStatus = "TO_DO" | "IN_PROGRESS" | "REVIEW" | "DONE";
@@ -23,7 +23,7 @@ const COLUMNS: { id: TaskStatus; title: string; color: string }[] = [
 ];
 
 export function KanbanBoard({ workspaceId }: KanbanBoardProps) {
-  const { tasks, loading, createTask, fetchTasks } = useTasks(workspaceId);
+  const { tasks, loading, createTask, fetchTasks } = useTasks(workspaceId); // Workspace optional
   const [localTasks, setLocalTasks] = useState<Task[]>([]);
   const [draggedTask, setDraggedTask] = useState<Task | null>(null);
   const [showForm, setShowForm] = useState(false);
