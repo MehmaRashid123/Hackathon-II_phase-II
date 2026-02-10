@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clear localStorage</title>
+</head>
+<body>
+    <h1>Clearing localStorage...</h1>
+    <script>
+        // Clear the kanban task statuses from localStorage
+        localStorage.removeItem('kanban-task-statuses');
+        document.body.innerHTML = '<h1 style="color: green;">✅ localStorage cleared!</h1><p>You can close this tab and refresh your Kanban board.</p>';
+    </script>
+</body>
+</html>

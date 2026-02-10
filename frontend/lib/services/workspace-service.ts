@@ -43,21 +43,21 @@ export class WorkspaceService {
    * Get all workspaces the current user has access to.
    */
   static async getUserWorkspaces(): Promise<Workspace[]> {
-    return apiClient.get<Workspace[]>("/workspaces/");
+    return apiClient.get<Workspace[]>("/api/workspaces/");
   }
 
   /**
    * Create a new workspace.
    */
   static async createWorkspace(data: WorkspaceCreateRequest): Promise<Workspace> {
-    return apiClient.post<Workspace>("/workspaces/", data);
+    return apiClient.post<Workspace>("/api/workspaces/", data);
   }
 
   /**
    * Get workspace details by ID.
    */
   static async getWorkspace(workspaceId: string): Promise<Workspace> {
-    return apiClient.get<Workspace>(`/workspaces/${workspaceId}`);
+    return apiClient.get<Workspace>(`/api/workspaces/${workspaceId}`);
   }
 
   /**
@@ -67,14 +67,14 @@ export class WorkspaceService {
     workspaceId: string,
     data: WorkspaceUpdateRequest
   ): Promise<Workspace> {
-    return apiClient.put<Workspace>(`/workspaces/${workspaceId}`, data);
+    return apiClient.put<Workspace>(`/api/workspaces/${workspaceId}`, data);
   }
 
   /**
    * Delete a workspace (OWNER only).
    */
   static async deleteWorkspace(workspaceId: string): Promise<void> {
-    return apiClient.delete<void>(`/workspaces/${workspaceId}`);
+    return apiClient.delete<void>(`/api/workspaces/${workspaceId}`);
   }
 
   /**
@@ -82,7 +82,7 @@ export class WorkspaceService {
    */
   static async getWorkspaceMembers(workspaceId: string): Promise<WorkspaceMember[]> {
     return apiClient.get<WorkspaceMember[]>(
-      `/workspaces/${workspaceId}/members`
+      `/api/workspaces/${workspaceId}/members`
     );
   }
 
@@ -94,7 +94,7 @@ export class WorkspaceService {
     data: WorkspaceMemberInviteRequest
   ): Promise<WorkspaceMember> {
     return apiClient.post<WorkspaceMember>(
-      `/workspaces/${workspaceId}/members`,
+      `/api/workspaces/${workspaceId}/members`,
       data
     );
   }
@@ -108,7 +108,7 @@ export class WorkspaceService {
     data: WorkspaceMemberUpdateRequest
   ): Promise<WorkspaceMember> {
     return apiClient.patch<WorkspaceMember>(
-      `/workspaces/${workspaceId}/members/${userId}`,
+      `/api/workspaces/${workspaceId}/members/${userId}`,
       data
     );
   }
@@ -118,7 +118,7 @@ export class WorkspaceService {
    */
   static async removeMember(workspaceId: string, userId: string): Promise<void> {
     return apiClient.delete<void>(
-      `/workspaces/${workspaceId}/members/${userId}`
+      `/api/workspaces/${workspaceId}/members/${userId}`
     );
   }
 }

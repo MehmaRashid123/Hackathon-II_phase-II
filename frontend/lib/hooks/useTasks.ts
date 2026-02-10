@@ -26,30 +26,6 @@ export function useTasks(workspaceId?: string) {
   // Use provided workspace ID or auto-fetched one
   const effectiveWorkspaceId = workspaceId || autoWorkspaceId;
 
-  // Helper to load saved statuses from localStorage
-  function loadSavedStatuses(): Record<string, any> {
-    if (typeof window === 'undefined') return {};
-    try {
-      const saved = localStorage.getItem('kanban-task-statuses');
-      return saved ? JSON.parse(saved) : {};
-    } catch {
-      return {};
-    }
-  }
-
-  // Helper to update localStorage
-  function updateLocalStorageStatus(taskId: string, status: string) {
-    if (typeof window === 'undefined') return;
-    try {
-      const saved = localStorage.getItem('kanban-task-statuses');
-      const statuses = saved ? JSON.parse(saved) : {};
-      statuses[taskId] = status;
-      localStorage.setItem('kanban-task-statuses', JSON.stringify(statuses));
-    } catch (err) {
-      console.error('Failed to save status to localStorage:', err);
-    }
-  }
-
   // Fetch all tasks
   const fetchTasks = useCallback(async (wsId?: string) => {
     try {
@@ -61,13 +37,10 @@ export function useTasks(workspaceId?: string) {
       
       const data = await taskApi.list(targetWorkspaceId);
 
-      // Load saved statuses from localStorage (for Kanban sync)
-      const savedStatuses = loadSavedStatuses();
-
-      // Merge with saved statuses
+      // Use status from database (don't override with localStorage)
       const tasksWithStatus = data.map(task => ({
         ...task,
-        status: savedStatuses[task.id] || task.status || (task.is_completed ? "DONE" : "TO_DO")
+        status: task.status || (task.is_completed ? "DONE" : "TO_DO")
       }));
 
       setTasks(tasksWithStatus);
@@ -117,10 +90,6 @@ export function useTasks(workspaceId?: string) {
       
       console.log('Personal task created successfully:', newTask);
 
-      // Save status to localStorage for Kanban sync
-      const taskStatus = newTask.status || (newTask.is_completed ? "DONE" : "TO_DO");
-      updateLocalStorageStatus(newTask.id, taskStatus);
-
       // Replace optimistic task with real task
       setTasks((prev) =>
         prev.map((task) => (task.id === tempId ? newTask : task))
@@ -157,9 +126,6 @@ export function useTasks(workspaceId?: string) {
             : task
         )
       );
-
-      // Update localStorage for Kanban sync
-      updateLocalStorageStatus(taskId, newStatus);
 
       // Make API call
       const updatedTask = await taskApi.toggleComplete(taskId);
@@ -204,11 +170,6 @@ export function useTasks(workspaceId?: string) {
         // Make API call
         const updatedTask = await taskApi.update(taskId, data);
 
-        // Update localStorage if status changed
-        if (data.status) {
-          updateLocalStorageStatus(taskId, data.status);
-        }
-
         // Update with server response
         setTasks((prev) =>
           prev.map((task) => (task.id === taskId ? updatedTask : task))
@@ -244,20 +205,6 @@ export function useTasks(workspaceId?: string) {
 
       // Make API call
       await taskApi.delete(taskId);
-
-      // Remove from localStorage
-      if (typeof window !== 'undefined') {
-        try {
-          const saved = localStorage.getItem('kanban-task-statuses');
-          if (saved) {
-            const statuses = JSON.parse(saved);
-            delete statuses[taskId];
-            localStorage.setItem('kanban-task-statuses', JSON.stringify(statuses));
-          }
-        } catch (err) {
-          console.error('Failed to remove status from localStorage:', err);
-        }
-      }
     } catch (err) {
       // Rollback on error
       setTasks(tasks);

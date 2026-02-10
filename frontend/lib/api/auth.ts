@@ -27,7 +27,16 @@ export const auth = {
    */
   getUser(): { id: string; email: string; created_at: string } | null {
     const userStr = localStorage.getItem("user");
-    return userStr ? JSON.parse(userStr) : null;
+    if (!userStr || userStr === "undefined" || userStr === "null") {
+      return null;
+    }
+    try {
+      return JSON.parse(userStr);
+    } catch (error) {
+      console.error("Failed to parse user from localStorage:", error);
+      localStorage.removeItem("user"); // Clear invalid data
+      return null;
+    }
   },
 
   /**
