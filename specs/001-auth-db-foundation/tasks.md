@@ -41,7 +41,7 @@
 ### Database Foundation
 
 - [X] T006 Install and configure SQLModel in `backend/requirements.txt` (version 0.0.14+)
-- [X] T007 Create database configuration in `backend/src/database.py` with Neon PostgreSQL connection using DATABASE_URL from environment
+- [x] T007 Create database configuration in `backend/src/database.py` with Neon PostgreSQL connection using DATABASE_URL from environment
 - [X] T008 Configure SQLModel engine with connection pooling (max 20 connections) in `backend/src/database.py`
 - [X] T009 Create database session dependency for FastAPI in `backend/src/database.py`
 - [X] T010 Initialize Alembic for database migrations in `backend/alembic/` directory
